@@ -1,0 +1,564 @@
+@import url("reset.min.css");
+@import url("https://fonts.googleapis.com/css2?family=Coiny&family=Montserrat:ital,wght@0,100..900;1,100..900&family=Roboto:ital,wght@0,100;0,300;0,400;0,500;0,700;0,900;1,100;1,300;1,400;1,500;1,700;1,900&display=swap");
+
+/* Canela Deck Font Family */
+@font-face {
+    font-family: "Canela Deck";
+    src: url("../fonts/CanelaDeck-Thin.otf") format("opentype");
+    font-weight: 100;
+    font-style: normal;
+}
+
+@font-face {
+    font-family: "Canela Deck";
+    src: url("../fonts/CanelaDeck-ThinItalic.otf") format("opentype");
+    font-weight: 100;
+    font-style: italic;
+}
+
+@font-face {
+    font-family: "Canela Deck";
+    src: url("../fonts/CanelaDeck-Light.otf") format("opentype");
+    font-weight: 300;
+    font-style: normal;
+}
+
+@font-face {
+    font-family: "Canela Deck";
+    src: url("../fonts/CanelaDeck-LightItalic.otf") format("opentype");
+    font-weight: 300;
+    font-style: italic;
+}
+
+@font-face {
+    font-family: "Canela Deck";
+    src: url("../fonts/CanelaDeck-Regular.otf") format("opentype");
+    font-weight: 400;
+    font-style: normal;
+}
+
+@font-face {
+    font-family: "Canela Deck";
+    src: url("../fonts/CanelaDeck-RegularItalic.otf") format("opentype");
+    font-weight: 400;
+    font-style: italic;
+}
+
+@font-face {
+    font-family: "Canela Deck";
+    src: url("../fonts/CanelaDeck-Medium.otf") format("opentype");
+    font-weight: 500;
+    font-style: normal;
+}
+
+@font-face {
+    font-family: "Canela Deck";
+    src: url("../fonts/CanelaDeck-MediumItalic.otf") format("opentype");
+    font-weight: 500;
+    font-style: italic;
+}
+
+@font-face {
+    font-family: "Canela Deck";
+    src: url("../fonts/CanelaDeck-Bold.otf") format("opentype");
+    font-weight: 700;
+    font-style: normal;
+}
+
+@font-face {
+    font-family: "Canela Deck";
+    src: url("../fonts/CanelaDeck-BoldItalic.otf") format("opentype");
+    font-weight: 700;
+    font-style: italic;
+}
+
+@font-face {
+    font-family: "Canela Deck";
+    src: url("../fonts/CanelaDeck-Black.otf") format("opentype");
+    font-weight: 900;
+    font-style: normal;
+}
+
+@font-face {
+    font-family: "Canela Deck";
+    src: url("../fonts/CanelaDeck-BlackItalic.otf") format("opentype");
+    font-weight: 900;
+    font-style: italic;
+}
+
+* {
+    -webkit-font-smoothing: antialiased;
+    box-sizing: border-box;
+}
+
+html,
+body {
+    margin: 0;
+    height: 100%;
+    font-size: 24px;
+}
+
+/* a blue color as a generic focus style */
+button:focus-visible {
+    outline: 0.0833em solid #4a90e2 !important;
+    outline: -webkit-focus-ring-color auto 0.2083em !important;
+}
+
+a {
+    text-decoration: none;
+}
+
+section>.container,
+footer>.container,
+.nav-container {
+    width: 100%;
+    max-width: 64.5833em;
+    margin: 0 auto;
+    position: relative;
+}
+
+section>.container>.row,
+footer>.container>.row,
+.nav-container>.nav-row {
+    display: flex;
+    flex-wrap: wrap;
+    flex-direction: row;
+    align-items: center;
+    position: relative;
+    width: 100%;
+    justify-content: space-between;
+}
+
+.flex-wrap {
+    flex-wrap: wrap !important;
+}
+
+.flex-direction-column {
+    flex-direction: column !important;
+}
+
+.btn {
+    cursor: pointer !important;
+}
+
+.text-align-center {
+    text-align: center !important;
+}
+
+.margin-auto {
+    margin: 0 auto !important;
+}
+
+/* ============================================================================
+   NAVBAR (Same as index)
+   ============================================================================ */
+
+.navbar {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    padding: 0.2083em 0;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background-color: var(--primaryprimary-700);
+    backdrop-filter: blur(0.3333em) brightness(100%);
+    -webkit-backdrop-filter: blur(0.3333em) brightness(100%);
+    z-index: 9999;
+}
+
+.navbar-logo {
+    display: flex;
+    align-items: center;
+}
+
+.navbar-logo .logo-img {
+    height: 3.6250em;
+    width: 3.6050em;
+    object-fit: cover;
+    object-position: 50% 50%;
+}
+
+.navbar-nav {
+    display: inline-flex;
+    position: relative;
+    align-items: center;
+    gap: 1.8333em;
+}
+
+.navbar-nav.active:before {
+    position: absolute;
+    background-image: url(../images/rung-ngap-man-vam-sat-2-2.png);
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    opacity: 0.1;
+}
+
+.btn-book-mb {
+    display: none;
+}
+
+.nav-menu {
+    display: flex;
+    gap: 0.4167em;
+}
+
+.nav-item:hover,
+.nav-item.active {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.4167em;
+    padding: 0.4167em 0.1667em;
+    position: relative;
+    flex: 0 0 auto;
+    border-bottom-width: 0.0833em;
+    border-bottom-style: solid;
+    border-color: #d5ae44;
+}
+
+.nav-item {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.4167em;
+    padding: 0.4167em 0.1667em;
+    position: relative;
+    flex: 0 0 auto;
+}
+
+.nav-item:hover .nav-link,
+.nav-link-text {
+    width: fit-content;
+    font-size: 0.7500em;
+    position: relative;
+    font-family: "Montserrat", Helvetica;
+    font-weight: 500;
+    color: var(--secondarysecondary-700);
+    letter-spacing: 0;
+    line-height: normal;
+}
+
+.nav-link {
+    position: relative;
+    width: fit-content;
+    font-family: "Montserrat", Helvetica;
+    font-weight: 500;
+    color: var(--white);
+    font-size: 0.7500em;
+    letter-spacing: 0;
+    line-height: normal;
+}
+
+.nav-btn-book {
+    all: unset;
+    box-sizing: border-box;
+    display: flex;
+    width: 8.2083em;
+    height: 1.8333em;
+    align-items: center;
+    justify-content: center;
+    gap: 0.4167em;
+    padding: 0 0.6667em;
+    position: relative;
+    background-color: var(--secondarysecondary-700);
+}
+
+.nav-btn-book:hover {
+    background-color: #DEC170;
+}
+
+.nav-btn-text {
+    position: relative;
+    width: fit-content;
+    font-family: var(--body-1-font-family);
+    font-weight: var(--body-1-font-weight);
+    color: var(--white);
+    font-size: var(--body-1-font-size);
+    letter-spacing: var(--body-1-letter-spacing);
+    line-height: var(--body-1-line-height);
+    font-style: var(--body-1-font-style);
+}
+
+/* ============================================================================
+   FOOTER (Same as index)
+   ============================================================================ */
+
+.footer {
+    width: 100%;
+    padding: 2.0833em 0;
+}
+
+.footer-left {
+    width: 50%;
+}
+
+.footer-logo {
+    width: 100%;
+    max-width: 25.5833em;
+    margin-bottom: 2.0833em;
+}
+
+.footer-logo-img {
+    width: 3.5em;
+    object-fit: cover;
+}
+
+.footer-logo-text {
+    width: calc(100% - 3.8em);
+}
+
+.footer-info {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.6667em;
+}
+
+.footer-info-item {
+    gap: 0.6667em;
+    align-self: stretch;
+    width: 100%;
+    flex: 0 0 auto;
+    display: flex;
+    align-items: center;
+    position: relative;
+}
+
+.footer-icon {
+    position: relative;
+    width: 1em;
+    height: 1em;
+}
+
+.footer-text {
+    position: relative;
+    width: fit-content;
+    font-family: "Montserrat", Helvetica;
+    font-weight: 500;
+    color: var(--white);
+    font-size: 1em;
+    letter-spacing: 0;
+    line-height: normal;
+}
+
+.footer-right {
+    display: inline-flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 9em;
+    width: 50%;
+}
+
+.footer-social {
+    display: flex;
+    gap: 0.5em;
+}
+
+.footer-social .icon {
+    width: 2.5em;
+    height: 2.5em;
+}
+
+.footer-copyright {
+    position: relative;
+    font-family: "Montserrat", Helvetica;
+    font-weight: 500;
+    color: var(--white);
+    font-size: 0.8333em;
+    line-height: normal;
+}
+
+.intellisyncdata {
+    color: #1877f2;
+}
+
+.intellisyncdata b {
+    font-weight: 700;
+}
+
+/* ============================================================================
+   RESPONSIVE STYLES
+   ============================================================================ */
+
+/* Desktop nhỏ: 1550px trở xuống */
+@media (max-width: 1550px) {
+
+    html,
+    body {
+        font-size: 18px;
+    }
+}
+
+/* Desktop nhỏ: 1200px trở xuống */
+@media (max-width: 1200px) {
+
+    section>.container,
+    footer>.container,
+    .nav-container {
+        max-width: 50em;
+        padding: 0 1.6667em;
+    }
+}
+
+/* Tablet: 1024px trở xuống */
+@media (max-width: 1023px) {
+
+    section>.container,
+    footer>.container,
+    .nav-container {
+        max-width: 37.5em;
+        padding: 0 1.2500em;
+    }
+
+    .footer-text {
+        font-size: 0.8333em;
+    }
+
+    .footer-left {
+        width: 100%;
+    }
+
+    .footer-right {
+        width: 100%;
+        gap: 1em;
+        align-items: flex-start;
+        margin-top: 1em;
+    }
+}
+
+/* Mobile: 768px trở xuống */
+@media (max-width: 768px) {
+
+    section>.container,
+    footer>.container,
+    .nav-container {
+        max-width: 100%;
+        padding: 0 0.8333em;
+    }
+
+    section>.container>.row {
+        flex-direction: column;
+    }
+
+    .about-us .footer-left,
+    .about-us .footer-right {
+        width: 100%;
+    }
+
+    /* ========================================
+       HAMBURGER MENU - Mobile & Tablet
+       ======================================== */
+
+    /* Hiển thị hamburger button */
+    .hamburger {
+        display: flex !important;
+    }
+
+    /* Ẩn navbar-nav mặc định, hiện từ bên trái khi active */
+    .navbar-nav {
+        position: fixed;
+        top: 0;
+        left: -100%;
+        width: 100%;
+        height: 100vh;
+        background-color: var(--primaryprimary-700);
+        flex-direction: column !important;
+        justify-content: flex-start;
+        align-items: flex-start !important;
+        padding: 4.1667em 1.6667em 1.6667em;
+        transition: left 0.3s ease;
+        box-shadow: 0.2083em 0 0.8333em rgba(0, 0, 0, 0.3);
+        gap: 1.6667em !important;
+        z-index: 9998;
+    }
+
+    .btn-book-pc {
+        display: none;
+    }
+
+    .btn-book-mb {
+        display: block;
+    }
+
+    /* Hiển thị menu khi active */
+    .navbar-nav.active {
+        left: 0;
+    }
+
+    .navbar-nav.active:before {
+        content: "";
+    }
+
+    /* Menu items theo chiều dọc */
+    .nav-menu {
+        flex-direction: column !important;
+        width: 100%;
+        gap: 0 !important;
+    }
+
+    .nav-item {
+        width: 100%;
+        justify-content: flex-start !important;
+        padding: 0.8333em 0 !important;
+        border-bottom: 0.0417em solid rgba(255, 255, 255, 0.1) !important;
+    }
+
+    .nav-item.active {
+        border-bottom: 0.0417em solid #d5ae44 !important;
+    }
+
+    /* Button book now full width */
+    .nav-btn-book {
+        width: 100% !important;
+        height: 2.5em !important;
+    }
+
+    .nav-link,
+    .nav-link-text,
+    .nav-item:hover .nav-link {
+        font-size: 1em;
+        font-family: "Canela Deck", Helvetica;
+        font-weight: 700;
+    }
+}
+
+/* ============================================================================
+   HAMBURGER MENU STYLES (Global)
+   ============================================================================ */
+
+/* Ẩn hamburger mặc định trên desktop */
+.hamburger {
+    display: none;
+    background: none;
+    border: none;
+    cursor: pointer;
+    padding: 0.4167em;
+    z-index: 10000;
+    flex-direction: column;
+    gap: 0.25em;
+}
+
+.hamburger-line {
+    width: 1.5em;
+    height: 0.125em;
+    background-color: var(--white);
+    transition: all 0.3s ease;
+    display: block;
+}
+
+/* Animation khi hamburger active */
+.hamburger.active .hamburger-line:nth-child(1) {
+    transform: rotate(45deg) translate(0.3125em, 0.3125em);
+}
+
+.hamburger.active .hamburger-line:nth-child(2) {
+    opacity: 0;
+}
+
+.hamburger.active .hamburger-line:nth-child(3) {
+    transform: rotate(-45deg) translate(0.3125em, -0.3125em);
+}

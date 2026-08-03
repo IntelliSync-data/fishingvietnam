@@ -1,0 +1,11 @@
+# robots.txt for fishingvietnam.com
+
+User-agent: *
+Allow: /
+
+# Sitemap location
+Sitemap: https://fishingvietnam.com/sitemap.xml
+
+# Disallow admin or private directories (if any)
+# Disallow: /admin/
+# Disallow: /private/
