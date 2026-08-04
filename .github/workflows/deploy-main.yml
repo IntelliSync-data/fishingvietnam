@@ -25,9 +25,9 @@ jobs:
       - name: Upload via FTP
         uses: SamKirkland/FTP-Deploy-Action@v4.3.5
         with:
-          server: ${{ secrets.LANDING_PAGE_BLOOMPOD_HOST }}
-          username: ${{ secrets.LANDING_PAGE_BLOOMPOD_USER }}
-          password: ${{ secrets.LANDING_PAGE_BLOOMPOD_PASSWORD }}
+          server: ${{ secrets.LANDING_PAGE_VFO_HOST }}
+          username: ${{ secrets.LANDING_PAGE_VFO_USER }}
+          password: ${{ secrets.LANDING_PAGE_VFO_PASSWORD }}
           protocol: ftps
           port: 21
           security: loose
