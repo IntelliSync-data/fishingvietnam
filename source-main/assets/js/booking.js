@@ -149,7 +149,7 @@ document.addEventListener('DOMContentLoaded', function() {
                         package_id: PACKAGE_IDS[currentPackage] || 3,
                         email: emailTrimmed,
                         notes: notes,
-                        payment_method_id: 1
+                        payment_method_id: 2
                     });
                 })
                 .catch(() => {
@@ -415,7 +415,11 @@ function showPaymentOptionModal(profileParams) {
             .then(data => {
                 removePaymentLoadingModal();
                 if (data.result && data.result.success) {
-                    showQRCodeModal(data.result);
+                    // Open PayPal in new tab
+                    if (data.result.redirect_url) {
+                        window.open(data.result.redirect_url, '_blank');
+                    }
+                    showWaitingPaymentModal(data.result);
                     const bookingForm = document.getElementById('bookingForm');
                     if (bookingForm) bookingForm.reset();
                 } else {
@@ -468,15 +472,15 @@ function removePaymentLoadingModal() {
     if (el) el.remove();
 }
 
-// ===== QR CODE MODAL =====
-function showQRCodeModal(paymentData) {
-    const existing = document.getElementById('qrCodeModal');
+// ===== WAITING PAYMENT MODAL =====
+function showWaitingPaymentModal(paymentData) {
+    const existing = document.getElementById('waitingPaymentModal');
     if (existing) existing.remove();
 
     stopPaymentPolling();
 
     const overlay = document.createElement('div');
-    overlay.id = 'qrCodeModal';
+    overlay.id = 'waitingPaymentModal';
     overlay.style.cssText = `
         position: fixed; top: 0; left: 0; width: 100%; height: 100%;
         background: rgba(0, 0, 0, 0.7); z-index: 10001;
@@ -484,16 +488,18 @@ function showQRCodeModal(paymentData) {
         animation: fadeIn 0.25s ease;
     `;
 
-    const formattedAmount = new Intl.NumberFormat('en-US').format(paymentData.amount);
+    const amountUSD = paymentData.amount_usd != null
+        ? `$${new Intl.NumberFormat('en-US').format(paymentData.amount_usd)} USD`
+        : `${new Intl.NumberFormat('en-US').format(paymentData.amount)} VND`;
 
     overlay.innerHTML = `
         <div style="
-            background: #0C2E45; border-radius: 16px; max-width: 440px; width: 90%;
-            padding: 40px 36px; text-align: center; position: relative;
+            background: #0C2E45; border-radius: 16px; max-width: 460px; width: 90%;
+            padding: 44px 40px; text-align: center; position: relative;
             box-shadow: 0 8px 32px rgba(0,0,0,0.4); animation: modalSlideUp 0.3s ease;
             border: 1px solid rgba(213, 174, 68, 0.2);
         ">
-            <button id="closeQRModal" style="
+            <button id="closeWaitingModal" style="
                 position: absolute; top: 14px; right: 14px; background: none;
                 border: none; cursor: pointer; width: 32px; height: 32px;
                 display: flex; align-items: center; justify-content: center;
@@ -506,21 +512,22 @@ function showQRCodeModal(paymentData) {
                     <line x1="6" y1="6" x2="18" y2="18"></line>
                 </svg>
             </button>
+
+            <div style="
+                width: 64px; height: 64px; border: 3px solid rgba(213,174,68,0.2);
+                border-top-color: #D5AA44; border-radius: 50%; margin: 0 auto 24px;
+                animation: spin 0.8s linear infinite;
+            "></div>
+
             <h3 style="
                 font-family: 'Canela Deck', Georgia, serif; font-size: 22px;
-                color: #D5AA44; margin: 0 0 6px; font-weight: 400;
-            ">Scan to Pay</h3>
+                color: #D5AA44; margin: 0 0 8px; font-weight: 400;
+            ">Waiting for Payment</h3>
             <p style="
                 font-family: 'Montserrat', sans-serif; font-size: 13px;
-                color: rgba(255,255,255,0.55); margin: 0 0 20px;
-            ">Scan the QR code below with your banking app</p>
-            <div style="
-                background: #fff; border-radius: 12px; padding: 16px;
-                display: inline-block; margin: 0 0 20px;
-            ">
-                <img src="${paymentData.qr_url}" alt="Payment QR Code"
-                     style="width: 220px; height: 220px; display: block;" />
-            </div>
+                color: rgba(255,255,255,0.55); margin: 0 0 24px; line-height: 1.6;
+            ">Please complete the payment on PayPal.<br>This page will update automatically.</p>
+
             <div style="
                 background: rgba(213, 174, 68, 0.08); border-radius: 10px;
                 padding: 16px; margin: 0 0 20px;
@@ -533,24 +540,30 @@ function showQRCodeModal(paymentData) {
                 <div style="
                     font-family: 'Montserrat', sans-serif; font-size: 24px;
                     color: #D5AA44; font-weight: 700;
-                ">${formattedAmount} VND</div>
+                ">${amountUSD}</div>
             </div>
-            <div id="qrCountdown" style="
+
+            <div id="waitingCountdown" style="
                 font-family: 'Montserrat', sans-serif; font-size: 14px;
                 color: rgba(255,255,255,0.6); display: flex; align-items: center;
-                justify-content: center; gap: 6px;
+                justify-content: center; gap: 6px; margin-bottom: 16px;
             ">
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none"
                      stroke="currentColor" stroke-width="2" stroke-linecap="round">
                     <circle cx="12" cy="12" r="10"></circle>
                     <polyline points="12 6 12 12 16 14"></polyline>
                 </svg>
-                Expires in <span id="qrTimer" style="font-weight: 600; color: #D5AA44;">05:00</span>
+                Expires in <span id="waitingTimer" style="font-weight: 600; color: #D5AA44;">05:00</span>
             </div>
-            <div id="qrStatus" style="
-                font-family: 'Montserrat', sans-serif; font-size: 13px;
-                color: rgba(255,255,255,0.45); margin-top: 12px;
-            ">Waiting for payment...</div>
+
+            <button id="openPaypalBtn" style="
+                background: transparent; color: #D5AA44; border: 1.5px solid rgba(213,174,68,0.4);
+                border-radius: 8px; padding: 12px 24px; cursor: pointer; transition: all 0.2s;
+                font-family: 'Montserrat', sans-serif; font-weight: 600; font-size: 13px;
+            " onmouseover="this.style.background='rgba(213,174,68,0.1)'"
+               onmouseout="this.style.background='transparent'">
+                Open PayPal Again
+            </button>
         </div>
     `;
 
@@ -559,8 +572,8 @@ function showQRCodeModal(paymentData) {
 
     // Start countdown
     let remaining = 300;
-    const timerEl = overlay.querySelector('#qrTimer');
-    const countdownEl = overlay.querySelector('#qrCountdown');
+    const timerEl = overlay.querySelector('#waitingTimer');
+    const countdownEl = overlay.querySelector('#waitingCountdown');
 
     countdownInterval = setInterval(() => {
         remaining--;
@@ -577,6 +590,13 @@ function showQRCodeModal(paymentData) {
         }
     }, 1000);
 
+    // Re-open PayPal button
+    overlay.querySelector('#openPaypalBtn').addEventListener('click', () => {
+        if (paymentData.redirect_url) {
+            window.open(paymentData.redirect_url, '_blank');
+        }
+    });
+
     // Start polling
     paymentPollingInterval = setInterval(async () => {
         try {
@@ -584,11 +604,11 @@ function showQRCodeModal(paymentData) {
             if (resp.result && resp.result.success) {
                 if (resp.result.status === 'confirmed') {
                     stopPaymentPolling();
-                    closeQR();
+                    closeWaiting();
                     showPaymentSuccessModal();
                 } else if (resp.result.status === 'expired') {
                     stopPaymentPolling();
-                    closeQR();
+                    closeWaiting();
                     showNotification('Payment expired. Please try again.', 'error');
                 }
             }
@@ -599,11 +619,11 @@ function showQRCodeModal(paymentData) {
 
     paymentPollingTimeout = setTimeout(() => {
         stopPaymentPolling();
-        closeQR();
+        closeWaiting();
         showNotification('Payment expired. Please try again.', 'error');
     }, POLLING_TIMEOUT);
 
-    function closeQR() {
+    function closeWaiting() {
         stopPaymentPolling();
         overlay.style.animation = 'fadeOut 0.25s ease';
         setTimeout(() => {
@@ -612,9 +632,9 @@ function showQRCodeModal(paymentData) {
         }, 250);
     }
 
-    overlay.querySelector('#closeQRModal').addEventListener('click', closeQR);
+    overlay.querySelector('#closeWaitingModal').addEventListener('click', closeWaiting);
     overlay.addEventListener('click', (e) => {
-        if (e.target === overlay) closeQR();
+        if (e.target === overlay) closeWaiting();
     });
 }
 
