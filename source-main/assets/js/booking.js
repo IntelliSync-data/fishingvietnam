@@ -1,6 +1,8 @@
 // ===== API CONFIGURATION =====
 const API_ENDPOINT = 'https://app.fishingvietnam.com/api/inquiry';
-const PROFILE_API_ENDPOINT = 'https://app.fishingvietnam.com/api/profile/create';
+const PROFILE_API_ENDPOINT = 'https://app.fishingvietnam.com/api/profile';
+const POLLING_INTERVAL = 5000;
+const POLLING_TIMEOUT = 300000;
 
 const PACKAGE_IDS = {
     'basic': 3,
@@ -14,7 +16,10 @@ const PACKAGE_LABELS = {
     'platinum-elite': 'Premium Elite Expedition'
 };
 
-let currentPackage = 'basic'; // Track current selected package
+let currentPackage = 'basic';
+let paymentPollingInterval = null;
+let paymentPollingTimeout = null;
+let countdownInterval = null;
 
 document.addEventListener('DOMContentLoaded', function() {
     // Get all package tabs
@@ -138,19 +143,14 @@ document.addEventListener('DOMContentLoaded', function() {
 
             submitToAPI(payload)
                 .then(() => {
-                    // Create profile package after inquiry succeeds
+                    finalizeSubmission();
                     const notes = `${nameTrimmed}, ${phoneTrimmed}${specialRequests ? ', ' + specialRequests : ''}`;
-                    return createProfilePackage({
+                    showPaymentOptionModal({
                         package_id: PACKAGE_IDS[currentPackage] || 3,
                         email: emailTrimmed,
                         notes: notes,
                         payment_method_id: 1
                     });
-                })
-                .then(() => {
-                    showSuccessModal(emailTrimmed);
-                    bookingForm.reset();
-                    finalizeSubmission();
                 })
                 .catch(() => {
                     showNotification('An error occurred. Please try again!', 'error');
@@ -244,7 +244,7 @@ function submitToAPI(payload) {
 
 // ===== CREATE PROFILE PACKAGE (JSONRPC) =====
 function createProfilePackage(params) {
-    return fetch(PROFILE_API_ENDPOINT, {
+    return fetch(`${PROFILE_API_ENDPOINT}/create`, {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json'
@@ -266,29 +266,66 @@ function createProfilePackage(params) {
     });
 }
 
-// ===== SUCCESS MODAL =====
-function showSuccessModal(email) {
-    // Remove existing modal if any
-    const existing = document.getElementById('bookingSuccessModal');
+// ===== CHECK PAYMENT STATUS =====
+function checkPaymentStatus(userProfileId, transactionCode) {
+    return fetch(`${PROFILE_API_ENDPOINT}/check-payment`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+            jsonrpc: '2.0',
+            params: {
+                user_profile_id: userProfileId,
+                transaction_code: transactionCode
+            }
+        })
+    }).then(response => {
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        return response.json();
+    });
+}
+
+// ===== STOP PAYMENT POLLING =====
+function stopPaymentPolling() {
+    if (paymentPollingInterval) {
+        clearInterval(paymentPollingInterval);
+        paymentPollingInterval = null;
+    }
+    if (paymentPollingTimeout) {
+        clearTimeout(paymentPollingTimeout);
+        paymentPollingTimeout = null;
+    }
+    if (countdownInterval) {
+        clearInterval(countdownInterval);
+        countdownInterval = null;
+    }
+}
+
+// ===== PAYMENT OPTION MODAL =====
+function showPaymentOptionModal(profileParams) {
+    const existing = document.getElementById('paymentOptionModal');
     if (existing) existing.remove();
 
     const overlay = document.createElement('div');
-    overlay.id = 'bookingSuccessModal';
+    overlay.id = 'paymentOptionModal';
     overlay.style.cssText = `
         position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-        background: rgba(0, 0, 0, 0.6); z-index: 10001;
+        background: rgba(0, 0, 0, 0.7); z-index: 10001;
         display: flex; align-items: center; justify-content: center;
         animation: fadeIn 0.25s ease;
     `;
 
     overlay.innerHTML = `
         <div style="
-            background: #0C2E45; border-radius: 16px; max-width: 460px; width: 90%;
+            background: #0C2E45; border-radius: 16px; max-width: 500px; width: 90%;
             padding: 48px 40px; text-align: center; position: relative;
-            box-shadow: 0 8px 32px rgba(0,0,0,0.3); animation: modalSlideUp 0.3s ease;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.4); animation: modalSlideUp 0.3s ease;
             border: 1px solid rgba(213, 174, 68, 0.2);
         ">
-            <button id="closeSuccessModal" style="
+            <button id="closePaymentOption" style="
                 position: absolute; top: 14px; right: 14px; background: none;
                 border: none; cursor: pointer; width: 32px; height: 32px;
                 display: flex; align-items: center; justify-content: center;
@@ -307,27 +344,56 @@ function showSuccessModal(email) {
                 display: flex; align-items: center; justify-content: center;
             ">
                 <svg width="36" height="36" viewBox="0 0 24 24" fill="none"
-                     stroke="#D5AA44" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-                    <polyline points="20 6 9 17 4 12"></polyline>
+                     stroke="#D5AA44" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <rect x="1" y="4" width="22" height="16" rx="2" ry="2"></rect>
+                    <line x1="1" y1="10" x2="23" y2="10"></line>
                 </svg>
             </div>
             <h3 style="
-                font-family: 'Canela Deck', Georgia, serif; font-size: 26px;
-                color: #D5AA44; margin: 0 0 16px; font-weight: 400;
-            ">Booking Submitted Successfully</h3>
+                font-family: 'Canela Deck', Georgia, serif; font-size: 24px;
+                color: #D5AA44; margin: 0 0 12px; font-weight: 400;
+            ">Select Payment Option</h3>
             <p style="
-                font-family: 'Montserrat', sans-serif; font-size: 15px;
-                color: rgba(255, 255, 255, 0.75); line-height: 1.6; margin: 0;
-            ">Fishing VietNam will review and notify you via email at
-                <strong style="color: #D5AA44;">${email}</strong>
-            </p>
+                font-family: 'Montserrat', sans-serif; font-size: 14px;
+                color: rgba(255, 255, 255, 0.65); line-height: 1.6; margin: 0 0 32px;
+            ">Choose how you would like to pay for your booking</p>
+            <div style="display: flex; flex-direction: column; gap: 14px;">
+                <button id="payFullBtn" style="
+                    background: #D5AA44; color: #0C2E45; border: none; border-radius: 10px;
+                    padding: 18px 24px; cursor: pointer; transition: all 0.2s;
+                    font-family: 'Montserrat', sans-serif; font-weight: 600; font-size: 15px;
+                    display: flex; align-items: center; justify-content: center; gap: 10px;
+                " onmouseover="this.style.background='#e0b94d'; this.style.transform='translateY(-1px)'"
+                   onmouseout="this.style.background='#D5AA44'; this.style.transform='none'">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none"
+                         stroke="#0C2E45" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <circle cx="12" cy="12" r="10"></circle>
+                        <line x1="12" y1="8" x2="12" y2="16"></line>
+                        <line x1="8" y1="12" x2="16" y2="12"></line>
+                    </svg>
+                    Pay Full Amount (100%)
+                </button>
+                <button id="payHalfBtn" style="
+                    background: transparent; color: #D5AA44; border: 1.5px solid #D5AA44;
+                    border-radius: 10px; padding: 18px 24px; cursor: pointer; transition: all 0.2s;
+                    font-family: 'Montserrat', sans-serif; font-weight: 600; font-size: 15px;
+                    display: flex; align-items: center; justify-content: center; gap: 10px;
+                " onmouseover="this.style.background='rgba(213,174,68,0.1)'; this.style.transform='translateY(-1px)'"
+                   onmouseout="this.style.background='transparent'; this.style.transform='none'">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none"
+                         stroke="#D5AA44" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <circle cx="12" cy="12" r="10"></circle>
+                        <line x1="12" y1="8" x2="12" y2="16"></line>
+                    </svg>
+                    Pay 50% Deposit
+                </button>
+            </div>
         </div>
     `;
 
     document.body.appendChild(overlay);
     document.body.style.overflow = 'hidden';
 
-    // Close handlers
     function closeModal() {
         overlay.style.animation = 'fadeOut 0.25s ease';
         setTimeout(() => {
@@ -336,7 +402,289 @@ function showSuccessModal(email) {
         }, 250);
     }
 
-    overlay.querySelector('#closeSuccessModal').addEventListener('click', closeModal);
+    overlay.querySelector('#closePaymentOption').addEventListener('click', closeModal);
+    overlay.addEventListener('click', (e) => {
+        if (e.target === overlay) closeModal();
+    });
+
+    function handlePaymentChoice(halfPayment) {
+        closeModal();
+        const params = { ...profileParams, half_payment: halfPayment };
+        showPaymentLoadingModal();
+        createProfilePackage(params)
+            .then(data => {
+                removePaymentLoadingModal();
+                if (data.result && data.result.success) {
+                    showQRCodeModal(data.result);
+                    const bookingForm = document.getElementById('bookingForm');
+                    if (bookingForm) bookingForm.reset();
+                } else {
+                    showNotification(data.result?.error || 'Failed to create payment. Please try again!', 'error');
+                }
+            })
+            .catch(() => {
+                removePaymentLoadingModal();
+                showNotification('An error occurred. Please try again!', 'error');
+            });
+    }
+
+    overlay.querySelector('#payFullBtn').addEventListener('click', () => handlePaymentChoice(false));
+    overlay.querySelector('#payHalfBtn').addEventListener('click', () => handlePaymentChoice(true));
+}
+
+// ===== LOADING MODAL =====
+function showPaymentLoadingModal() {
+    const existing = document.getElementById('paymentLoadingModal');
+    if (existing) existing.remove();
+
+    const overlay = document.createElement('div');
+    overlay.id = 'paymentLoadingModal';
+    overlay.style.cssText = `
+        position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+        background: rgba(0, 0, 0, 0.7); z-index: 10002;
+        display: flex; align-items: center; justify-content: center;
+    `;
+    overlay.innerHTML = `
+        <div style="
+            background: #0C2E45; border-radius: 16px; padding: 48px;
+            text-align: center; border: 1px solid rgba(213, 174, 68, 0.2);
+        ">
+            <div style="
+                width: 48px; height: 48px; border: 3px solid rgba(213,174,68,0.2);
+                border-top-color: #D5AA44; border-radius: 50%; margin: 0 auto 20px;
+                animation: spin 0.8s linear infinite;
+            "></div>
+            <p style="
+                font-family: 'Montserrat', sans-serif; font-size: 15px;
+                color: rgba(255,255,255,0.8); margin: 0;
+            ">Creating payment...</p>
+        </div>
+    `;
+    document.body.appendChild(overlay);
+}
+
+function removePaymentLoadingModal() {
+    const el = document.getElementById('paymentLoadingModal');
+    if (el) el.remove();
+}
+
+// ===== QR CODE MODAL =====
+function showQRCodeModal(paymentData) {
+    const existing = document.getElementById('qrCodeModal');
+    if (existing) existing.remove();
+
+    stopPaymentPolling();
+
+    const overlay = document.createElement('div');
+    overlay.id = 'qrCodeModal';
+    overlay.style.cssText = `
+        position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+        background: rgba(0, 0, 0, 0.7); z-index: 10001;
+        display: flex; align-items: center; justify-content: center;
+        animation: fadeIn 0.25s ease;
+    `;
+
+    const formattedAmount = new Intl.NumberFormat('en-US').format(paymentData.amount);
+
+    overlay.innerHTML = `
+        <div style="
+            background: #0C2E45; border-radius: 16px; max-width: 440px; width: 90%;
+            padding: 40px 36px; text-align: center; position: relative;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.4); animation: modalSlideUp 0.3s ease;
+            border: 1px solid rgba(213, 174, 68, 0.2);
+        ">
+            <button id="closeQRModal" style="
+                position: absolute; top: 14px; right: 14px; background: none;
+                border: none; cursor: pointer; width: 32px; height: 32px;
+                display: flex; align-items: center; justify-content: center;
+                border-radius: 50%; transition: background 0.2s;
+            " onmouseover="this.style.background='rgba(255,255,255,0.1)'"
+               onmouseout="this.style.background='none'">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none"
+                     stroke="rgba(255,255,255,0.6)" stroke-width="2" stroke-linecap="round">
+                    <line x1="18" y1="6" x2="6" y2="18"></line>
+                    <line x1="6" y1="6" x2="18" y2="18"></line>
+                </svg>
+            </button>
+            <h3 style="
+                font-family: 'Canela Deck', Georgia, serif; font-size: 22px;
+                color: #D5AA44; margin: 0 0 6px; font-weight: 400;
+            ">Scan to Pay</h3>
+            <p style="
+                font-family: 'Montserrat', sans-serif; font-size: 13px;
+                color: rgba(255,255,255,0.55); margin: 0 0 20px;
+            ">Scan the QR code below with your banking app</p>
+            <div style="
+                background: #fff; border-radius: 12px; padding: 16px;
+                display: inline-block; margin: 0 0 20px;
+            ">
+                <img src="${paymentData.qr_url}" alt="Payment QR Code"
+                     style="width: 220px; height: 220px; display: block;" />
+            </div>
+            <div style="
+                background: rgba(213, 174, 68, 0.08); border-radius: 10px;
+                padding: 16px; margin: 0 0 20px;
+                border: 1px solid rgba(213, 174, 68, 0.15);
+            ">
+                <div style="
+                    font-family: 'Montserrat', sans-serif; font-size: 13px;
+                    color: rgba(255,255,255,0.55); margin-bottom: 4px;
+                ">Amount</div>
+                <div style="
+                    font-family: 'Montserrat', sans-serif; font-size: 24px;
+                    color: #D5AA44; font-weight: 700;
+                ">${formattedAmount} VND</div>
+            </div>
+            <div id="qrCountdown" style="
+                font-family: 'Montserrat', sans-serif; font-size: 14px;
+                color: rgba(255,255,255,0.6); display: flex; align-items: center;
+                justify-content: center; gap: 6px;
+            ">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none"
+                     stroke="currentColor" stroke-width="2" stroke-linecap="round">
+                    <circle cx="12" cy="12" r="10"></circle>
+                    <polyline points="12 6 12 12 16 14"></polyline>
+                </svg>
+                Expires in <span id="qrTimer" style="font-weight: 600; color: #D5AA44;">05:00</span>
+            </div>
+            <div id="qrStatus" style="
+                font-family: 'Montserrat', sans-serif; font-size: 13px;
+                color: rgba(255,255,255,0.45); margin-top: 12px;
+            ">Waiting for payment...</div>
+        </div>
+    `;
+
+    document.body.appendChild(overlay);
+    document.body.style.overflow = 'hidden';
+
+    // Start countdown
+    let remaining = 300;
+    const timerEl = overlay.querySelector('#qrTimer');
+    const countdownEl = overlay.querySelector('#qrCountdown');
+
+    countdownInterval = setInterval(() => {
+        remaining--;
+        const m = String(Math.floor(remaining / 60)).padStart(2, '0');
+        const s = String(remaining % 60).padStart(2, '0');
+        timerEl.textContent = `${m}:${s}`;
+        if (remaining <= 60) {
+            timerEl.style.color = '#e74c3c';
+            countdownEl.style.color = 'rgba(231, 76, 60, 0.8)';
+        }
+        if (remaining <= 0) {
+            clearInterval(countdownInterval);
+            countdownInterval = null;
+        }
+    }, 1000);
+
+    // Start polling
+    paymentPollingInterval = setInterval(async () => {
+        try {
+            const resp = await checkPaymentStatus(paymentData.user_profile_id, paymentData.transaction_id);
+            if (resp.result && resp.result.success) {
+                if (resp.result.status === 'confirmed') {
+                    stopPaymentPolling();
+                    closeQR();
+                    showPaymentSuccessModal();
+                } else if (resp.result.status === 'expired') {
+                    stopPaymentPolling();
+                    closeQR();
+                    showNotification('Payment expired. Please try again.', 'error');
+                }
+            }
+        } catch (e) {
+            console.error('Payment polling error:', e);
+        }
+    }, POLLING_INTERVAL);
+
+    paymentPollingTimeout = setTimeout(() => {
+        stopPaymentPolling();
+        closeQR();
+        showNotification('Payment expired. Please try again.', 'error');
+    }, POLLING_TIMEOUT);
+
+    function closeQR() {
+        stopPaymentPolling();
+        overlay.style.animation = 'fadeOut 0.25s ease';
+        setTimeout(() => {
+            overlay.remove();
+            document.body.style.overflow = '';
+        }, 250);
+    }
+
+    overlay.querySelector('#closeQRModal').addEventListener('click', closeQR);
+    overlay.addEventListener('click', (e) => {
+        if (e.target === overlay) closeQR();
+    });
+}
+
+// ===== PAYMENT SUCCESS MODAL =====
+function showPaymentSuccessModal() {
+    const existing = document.getElementById('paymentSuccessModal');
+    if (existing) existing.remove();
+
+    const overlay = document.createElement('div');
+    overlay.id = 'paymentSuccessModal';
+    overlay.style.cssText = `
+        position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+        background: rgba(0, 0, 0, 0.7); z-index: 10001;
+        display: flex; align-items: center; justify-content: center;
+        animation: fadeIn 0.25s ease;
+    `;
+
+    overlay.innerHTML = `
+        <div style="
+            background: #0C2E45; border-radius: 16px; max-width: 460px; width: 90%;
+            padding: 48px 40px; text-align: center; position: relative;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.3); animation: modalSlideUp 0.3s ease;
+            border: 1px solid rgba(213, 174, 68, 0.2);
+        ">
+            <button id="closePaymentSuccess" style="
+                position: absolute; top: 14px; right: 14px; background: none;
+                border: none; cursor: pointer; width: 32px; height: 32px;
+                display: flex; align-items: center; justify-content: center;
+                border-radius: 50%; transition: background 0.2s;
+            " onmouseover="this.style.background='rgba(255,255,255,0.1)'"
+               onmouseout="this.style.background='none'">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none"
+                     stroke="rgba(255,255,255,0.6)" stroke-width="2" stroke-linecap="round">
+                    <line x1="18" y1="6" x2="6" y2="18"></line>
+                    <line x1="6" y1="6" x2="18" y2="18"></line>
+                </svg>
+            </button>
+            <div style="
+                width: 80px; height: 80px; margin: 0 auto 24px;
+                background: rgba(39, 174, 96, 0.15); border-radius: 50%;
+                display: flex; align-items: center; justify-content: center;
+            ">
+                <svg width="40" height="40" viewBox="0 0 24 24" fill="none"
+                     stroke="#27AE60" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                    <polyline points="20 6 9 17 4 12"></polyline>
+                </svg>
+            </div>
+            <h3 style="
+                font-family: 'Canela Deck', Georgia, serif; font-size: 26px;
+                color: #27AE60; margin: 0 0 16px; font-weight: 400;
+            ">Payment Successful!</h3>
+            <p style="
+                font-family: 'Montserrat', sans-serif; font-size: 15px;
+                color: rgba(255, 255, 255, 0.75); line-height: 1.7; margin: 0;
+            ">Thank you for your payment. Our team will contact you shortly to confirm your booking details.</p>
+        </div>
+    `;
+
+    document.body.appendChild(overlay);
+    document.body.style.overflow = 'hidden';
+
+    function closeModal() {
+        overlay.style.animation = 'fadeOut 0.25s ease';
+        setTimeout(() => {
+            overlay.remove();
+            document.body.style.overflow = '';
+        }, 250);
+    }
+
+    overlay.querySelector('#closePaymentSuccess').addEventListener('click', closeModal);
     overlay.addEventListener('click', (e) => {
         if (e.target === overlay) closeModal();
     });
@@ -411,6 +759,9 @@ if (!document.querySelector('#notification-styles')) {
         @keyframes modalSlideUp {
             from { transform: translateY(30px); opacity: 0; }
             to { transform: translateY(0); opacity: 1; }
+        }
+        @keyframes spin {
+            to { transform: rotate(360deg); }
         }
     `;
     document.head.appendChild(style);
