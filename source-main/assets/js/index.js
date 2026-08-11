@@ -12,7 +12,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 
             ];
 
-            tabs.forEach(tab => {
+            tabs.forEach((tab, index) => {
                 const btn = document.createElement('button');
                 btn.className = 'gallery-tab-btn';
                 if (index == 0) btn.classList.add('selected');
