@@ -15,7 +15,7 @@ document.addEventListener('DOMContentLoaded', function() {
             tabs.forEach((tab, index) => {
                 const btn = document.createElement('button');
                 btn.className = 'gallery-tab-btn';
-                if (index == 0) btn.classList.add('selected');
+                if (index === 0) btn.classList.add('selected');
                 btn.textContent= tab.name;
                 btn.dataset.categoryId = tab.id;
 
@@ -29,6 +29,10 @@ document.addEventListener('DOMContentLoaded', function() {
             });
 
             tabsContainer.appendChild(btn);
-        });
+            });
+        })
+        .catch(error => {
+            console.error('Lỗi fetch hoặc xử lý:', error);
+            tabsContainer.innerHTML = `<p style="color:red;">Không thể tải danh mục: ${error.message}</p>`;
     });
 });
