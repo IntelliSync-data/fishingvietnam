@@ -66,6 +66,22 @@ document.addEventListener('DOMContentLoaded', function () {
         selectPackageTab('basic'); // Default
     }
 
+    // Show the payment success modal when returning from an external payment
+    // provider, e.g. /booking-now.html?status=1
+    if (urlParams.get('status') === '1') {
+        showPaymentSuccessModal();
+
+        // Drop the flag from the URL so a refresh or back/forward does not
+        // pop the modal again, keeping any other params intact.
+        urlParams.delete('status');
+        const query = urlParams.toString();
+        window.history.replaceState(
+            {},
+            '',
+            window.location.pathname + (query ? '?' + query : '') + window.location.hash
+        );
+    }
+
     // Add click event for each package tab
     packageTabs.forEach(tab => {
         tab.addEventListener('click', function () {
