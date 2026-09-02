@@ -21,7 +21,7 @@ let paymentPollingInterval = null;
 let paymentPollingTimeout = null;
 let countdownInterval = null;
 
-document.addEventListener('DOMContentLoaded', function() {
+document.addEventListener('DOMContentLoaded', function () {
     // Get all package tabs
     const packageTabs = document.querySelectorAll('.package-tab');
     const bookingSection = document.querySelector('.booking-section');
@@ -68,7 +68,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // Add click event for each package tab
     packageTabs.forEach(tab => {
-        tab.addEventListener('click', function() {
+        tab.addEventListener('click', function () {
             // Get data-package value
             const packageName = this.getAttribute('data-package');
             selectPackageTab(packageName);
@@ -77,7 +77,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // ===== BOOKING FORM SUBMISSION =====
     if (bookingForm) {
-        bookingForm.addEventListener('submit', function(e) {
+        bookingForm.addEventListener('submit', function (e) {
             e.preventDefault();
 
             // Get form data
@@ -149,7 +149,7 @@ document.addEventListener('DOMContentLoaded', function() {
                         package_id: PACKAGE_IDS[currentPackage] || 3,
                         email: emailTrimmed,
                         notes: notes,
-                        payment_method_id: 2
+                        payment_method_id: 3
                     });
                 })
                 .catch(() => {
@@ -162,7 +162,7 @@ document.addEventListener('DOMContentLoaded', function() {
     // ===== CONTACT FORM SUBMISSION =====
     const contactForm = document.getElementById('contactForm');
     if (contactForm) {
-        contactForm.addEventListener('submit', function(e) {
+        contactForm.addEventListener('submit', function (e) {
             e.preventDefault();
 
             // Get form data
