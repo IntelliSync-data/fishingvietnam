@@ -149,7 +149,7 @@ document.addEventListener('DOMContentLoaded', function () {
                         package_id: PACKAGE_IDS[currentPackage] || 3,
                         email: emailTrimmed,
                         notes: notes,
-                        payment_method_id: 3
+                        payment_method_id: 2
                     });
                 })
                 .catch(() => {
