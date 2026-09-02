@@ -20,6 +20,73 @@ let currentPackage = 'basic';
 let paymentPollingInterval = null;
 let paymentPollingTimeout = null;
 let countdownInterval = null;
+let paymentWindow = null;
+
+// ===== PAYMENT POPUP WINDOW =====
+const PAYMENT_WINDOW_WIDTH = 500;
+const PAYMENT_WINDOW_HEIGHT = 720;
+
+/**
+ * Open the payment provider in a popup window.
+ *
+ * Must be called synchronously from a click handler, otherwise the browser
+ * blocks it as an unsolicited popup. Pass no url to park the window on a
+ * placeholder while the order is being created, then hand the real url to
+ * navigatePaymentWindow() once the API answers.
+ */
+function openPaymentWindow(url) {
+    const left = window.screenX + Math.max(0, (window.outerWidth - PAYMENT_WINDOW_WIDTH) / 2);
+    const top = window.screenY + Math.max(0, (window.outerHeight - PAYMENT_WINDOW_HEIGHT) / 2);
+    const features = [
+        `width=${PAYMENT_WINDOW_WIDTH}`,
+        `height=${PAYMENT_WINDOW_HEIGHT}`,
+        `left=${Math.round(left)}`,
+        `top=${Math.round(top)}`,
+        'resizable=yes',
+        'scrollbars=yes',
+    ].join(',');
+
+    paymentWindow = window.open(url || 'about:blank', 'isdPaymentWindow', features);
+
+    if (paymentWindow && !url) {
+        // Placeholder so the blank window does not look broken while we wait
+        paymentWindow.document.write(`
+            <html><head><title>Connecting to PayPal...</title></head>
+            <body style="margin:0;display:flex;align-items:center;justify-content:center;
+                         height:100vh;background:#0C2E45;color:rgba(255,255,255,0.75);
+                         font-family:'Montserrat',Arial,sans-serif;font-size:15px;">
+                Connecting to PayPal...
+            </body></html>
+        `);
+        paymentWindow.document.close();
+    }
+
+    return paymentWindow;
+}
+
+/** Send an already-open payment window to the provider url */
+function navigatePaymentWindow(url) {
+    if (paymentWindow && !paymentWindow.closed) {
+        paymentWindow.location.href = url;
+        paymentWindow.focus();
+    } else {
+        // Popup was blocked or the customer closed it before we got the url
+        openPaymentWindow(url);
+    }
+}
+
+/**
+ * Close the payment popup.
+ *
+ * Allowed even after the window navigated to paypal.com: a window opened by
+ * script can always be closed by its opener.
+ */
+function closePaymentWindow() {
+    if (paymentWindow && !paymentWindow.closed) {
+        paymentWindow.close();
+    }
+    paymentWindow = null;
+}
 
 document.addEventListener('DOMContentLoaded', function () {
     // Get all package tabs
@@ -425,25 +492,33 @@ function showPaymentOptionModal(profileParams) {
 
     function handlePaymentChoice(halfPayment) {
         closeModal();
+
+        // Open the popup here, while we still hold the click's user gesture.
+        // Opening it later, inside .then(), gets blocked by the browser.
+        openPaymentWindow();
+
         const params = { ...profileParams, half_payment: halfPayment };
         showPaymentLoadingModal();
         createProfilePackage(params)
             .then(data => {
                 removePaymentLoadingModal();
                 if (data.result && data.result.success) {
-                    // Open PayPal in new tab
                     if (data.result.redirect_url) {
-                        window.open(data.result.redirect_url, '_blank');
+                        navigatePaymentWindow(data.result.redirect_url);
+                    } else {
+                        closePaymentWindow();
                     }
                     showWaitingPaymentModal(data.result);
                     const bookingForm = document.getElementById('bookingForm');
                     if (bookingForm) bookingForm.reset();
                 } else {
+                    closePaymentWindow();
                     showNotification(data.result?.error || 'Failed to create payment. Please try again!', 'error');
                 }
             })
             .catch(() => {
                 removePaymentLoadingModal();
+                closePaymentWindow();
                 showNotification('An error occurred. Please try again!', 'error');
             });
     }
@@ -608,8 +683,11 @@ function showWaitingPaymentModal(paymentData) {
 
     // Re-open PayPal button
     overlay.querySelector('#openPaypalBtn').addEventListener('click', () => {
-        if (paymentData.redirect_url) {
-            window.open(paymentData.redirect_url, '_blank');
+        if (!paymentData.redirect_url) return;
+        if (paymentWindow && !paymentWindow.closed) {
+            paymentWindow.focus();
+        } else {
+            openPaymentWindow(paymentData.redirect_url);
         }
     });
 
@@ -620,10 +698,12 @@ function showWaitingPaymentModal(paymentData) {
             if (resp.result && resp.result.success) {
                 if (resp.result.status === 'confirmed') {
                     stopPaymentPolling();
+                    closePaymentWindow();
                     closeWaiting();
                     showPaymentSuccessModal();
                 } else if (resp.result.status === 'expired') {
                     stopPaymentPolling();
+                    closePaymentWindow();
                     closeWaiting();
                     showNotification('Payment expired. Please try again.', 'error');
                 }
@@ -635,6 +715,7 @@ function showWaitingPaymentModal(paymentData) {
 
     paymentPollingTimeout = setTimeout(() => {
         stopPaymentPolling();
+        closePaymentWindow();
         closeWaiting();
         showNotification('Payment expired. Please try again.', 'error');
     }, POLLING_TIMEOUT);
