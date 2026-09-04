@@ -111,7 +111,7 @@
                     <p class="gallery-desc">
                         Experience premium fishing, eco-tourism, and adventure — only 90 minutes from Ho Chi Minh City.
                     </p>
-                    <button class="btn btn-back" onclick="location.href='/#gallery'">
+                    <button class="btn btn-back" onclick="history.length > 1 ? history.back() : location.href='index.html#gallery'">
                         <svg width="7" height="11" viewBox="0 0 7 11" fill="none" xmlns="http://www.w3.org/2000/svg">
                             <path d="M5.5 1L1 5.5L5.5 10" stroke="#8292AA" stroke-width="2" stroke-linecap="round"
                                 stroke-linejoin="round" />
@@ -122,29 +122,10 @@
                 <div class="gallery-tabs">
                 </div>
                 <div class="gallery-content">
-                    <div class="gallery-grid">
-                        <div class="gallery-img large">
-                            <img src="assets/images/image-gallery-1.png" />
-                        </div>
-                        <div class="gallery-img video">
-                            <img src="assets/images/image-gallery-2.png" />
-                        </div>
-                        <div class="gallery-img">
-                            <img src="assets/images/image-gallery-3.png" />
-                        </div>
-                        <div class="gallery-img video">
-                            <img src="assets/images/rectangle-17754.png" />
-                        </div>
-                        <div class="gallery-img">
-                            <img src="assets/images/rectangle-17755.png" />
-                        </div>
-                        <div class="gallery-img video">
-                            <img src="assets/images/rectangle-17756.png" />
-                        </div>
-                        <div class="gallery-img">
-                            <img src="assets/images/rectangle-17757.png" />
-                        </div>
-                    </div>
+                    <!-- gallery.js render-->
+                    <div class="gallery-grid"></div>
+                    <!--infinite scroll-->
+                    <div id="gallery-sentinel"></div>
                 </div>
 
             </div>
