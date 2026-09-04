@@ -7,6 +7,11 @@ function resolveMediaUrl(path) {
     if (/^https?:\/\//i.test(path)) return path;
     return MEDIA_API_BASE_URL + path;
 }
+function isVerticalMedia(item) {
+    return (item.tags || []).some(
+        tag => (tag.name || '').trim().toLowerCase() === 'vertical'
+    );
+}
 
 // Open popup lightbox to show full media 
 function openLightbox(item) {
@@ -22,22 +27,24 @@ function openLightbox(item) {
         img.className = 'lightbox-image';
         lightboxContent.appendChild(img);
     }
-     else if (item.type === 'video') {
-        const videoWrapper = document.createElement('div');
-        videoWrapper.className = 'lightbox-video-wrapper';
-
+    else if (item.type === 'video') {
+        // A <video> carries its own dimensions, so it sizes itself the same
+        // way the image above does. No wrapper and no orientation needed.
         const video = document.createElement('video');
-        video.className = 'lightbox-video';
+        video.className = 'lightbox-video-file';
         video.src = resolveMediaUrl(item.url);
         video.controls = true;
         video.autoplay = true;
 
-        videoWrapper.appendChild(video);
-        lightboxContent.appendChild(videoWrapper);
+        lightboxContent.appendChild(video);
     }
-     else if (item.type === 'youtube' || item.type === 'facebook') {
+    else if (item.type === 'youtube' || item.type === 'facebook') {
         const videoWrapper = document.createElement('div');
         videoWrapper.className = 'lightbox-video-wrapper';
+
+        if (isVerticalMedia(item)) {
+            videoWrapper.classList.add('vertical');
+        }
 
         const iframe = document.createElement('iframe');
         iframe.className = 'lightbox-video';
@@ -83,14 +90,14 @@ function renderGallery(items, append = false) {
     }
 
     items.forEach(item => {
-    
+
         const isWide = item.display_size === 'medium' || item.display_size === 'large';
 
         const galleryItem = document.createElement('div');
         galleryItem.className = `gallery-img ${isWide ? 'large' : ''}`;
         galleryItem.style.cursor = 'pointer';
 
-        
+
         const thumbSrc = item.type === 'image' ? item.url : item.thumbnail_url;
         if (thumbSrc) {
             const img = document.createElement('img');
@@ -99,7 +106,7 @@ function renderGallery(items, append = false) {
             galleryItem.appendChild(img);
         }
 
-        
+
         if (item.type !== 'image') {
             galleryItem.classList.add('video');
 

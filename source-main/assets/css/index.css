@@ -1235,6 +1235,8 @@
     left: 0;
     width: 100vw;
     height: 100vh;
+    box-sizing: border-box;
+    overflow: hidden;
     background-color: rgba(0, 0, 0, 0.95);
     z-index: 10000;
     align-items: center;
@@ -1260,12 +1262,34 @@
     object-fit: contain;
 }
 
-/* Video wrapper với aspect ratio 16:9 */
+/* Video file upload: có sẵn kích thước nội tại nên tự co theo tỉ lệ thật,
+   ngang hay dọc đều vừa màn hình mà không cần biết trước. */
+.lightbox-video-file {
+    max-width: 100%;
+    max-height: 100%;
+    width: auto;
+    height: auto;
+}
+
+/* Khung cho video nhúng (iframe).
+   Iframe không có kích thước nội tại nên phải chỉ định tỉ lệ. Khung tính theo
+   bề nào chật hơn của vùng trống trong overlay, nên video luôn nằm trọn trong
+   màn hình và không bao giờ phải scroll.
+   --avail-* là vùng trống thật sự = viewport trừ padding của overlay. */
 .lightbox-video-wrapper {
+    --avail-w: calc(100vw - 4em);
+    --avail-h: calc(100vh - 4em);
     position: relative;
-    width: 90vw;
-    max-width: 1400px;
     aspect-ratio: 16 / 9;
+    width: min(var(--avail-w), calc(var(--avail-h) * 16 / 9));
+    max-width: 1400px;
+}
+
+/* Video dọc (reel / short): lấy chiều cao làm chuẩn */
+.lightbox-video-wrapper.vertical {
+    aspect-ratio: 9 / 16;
+    width: auto;
+    height: min(var(--avail-h), calc(var(--avail-w) * 16 / 9));
 }
 
 .lightbox-video {
@@ -1311,7 +1335,8 @@
     }
 
     .lightbox-video-wrapper {
-        width: 95vw;
+        --avail-w: calc(100vw - 2em);
+        --avail-h: calc(100vh - 2em);
     }
 
     .lightbox-close {
