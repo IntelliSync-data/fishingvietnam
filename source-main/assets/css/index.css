@@ -1229,6 +1229,7 @@
 
 /* Lightbox popup */
 .gallery-lightbox {
+    --lb-pad: 2em;
     display: none;
     position: fixed;
     top: 0;
@@ -1241,7 +1242,7 @@
     z-index: 10000;
     align-items: center;
     justify-content: center;
-    padding: 2em;
+    padding: var(--lb-pad);
 }
 
 .lightbox-content {
@@ -1277,8 +1278,8 @@
    màn hình và không bao giờ phải scroll.
    --avail-* là vùng trống thật sự = viewport trừ padding của overlay. */
 .lightbox-video-wrapper {
-    --avail-w: calc(100vw - 4em);
-    --avail-h: calc(100vh - 4em);
+    --avail-w: calc(100vw - 2 * var(--lb-pad));
+    --avail-h: calc(100vh - 2 * var(--lb-pad));
     position: relative;
     aspect-ratio: 16 / 9;
     width: min(var(--avail-w), calc(var(--avail-h) * 16 / 9));
@@ -1323,6 +1324,24 @@
     transform: scale(1.2);
 }
 
+/* Trên mobile, 100vh tính cả phần bị thanh URL / thanh điều hướng của browser
+   che mất, nên đáy video dọc bị khuất. svh là chiều cao nhỏ nhất - lúc thanh
+   đang hiện - nên nội dung luôn nhìn thấy đủ.
+   Tách ra @supports để trình duyệt cũ vẫn giữ 100vh ở trên. */
+@supports (height: 100svh) {
+    .gallery-lightbox {
+        height: 100svh;
+    }
+
+    .lightbox-image {
+        max-height: 90svh;
+    }
+
+    .lightbox-video-wrapper {
+        --avail-h: calc(100svh - 2 * var(--lb-pad));
+    }
+}
+
 @media (max-width: 768px) {
     .home .gallery-img .play-icon {
         width: 2.5em;
@@ -1331,12 +1350,7 @@
     }
 
     .gallery-lightbox {
-        padding: 1em;
-    }
-
-    .lightbox-video-wrapper {
-        --avail-w: calc(100vw - 2em);
-        --avail-h: calc(100vh - 2em);
+        --lb-pad: 1em;
     }
 
     .lightbox-close {
