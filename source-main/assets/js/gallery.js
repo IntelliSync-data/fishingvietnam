@@ -112,7 +112,10 @@ function renderGallery(items, append = false) {
 
             const playIcon = document.createElement('div');
             playIcon.className = 'play-icon';
-            playIcon.innerHTML = '▶';
+            playIcon.innerHTML = `
+                <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                    <polygon points="8,5 19,12 8,19"/>
+                </svg>`;
             galleryItem.appendChild(playIcon);
         }
 
