@@ -1,4 +1,11 @@
 // ===== API CONFIGURATION =====
+const isProduction = window.location.hostname === 'fishingvietnam.com' ||
+    window.location.hostname === 'www.fishingvietnam.com';
+
+const ENV_CONFIG = isProduction
+    ? { payment_method_id: 3 }   // production
+    : { payment_method_id: 2 };  // demo
+
 const API_ENDPOINT = 'https://app.fishingvietnam.com/api/inquiry';
 const PROFILE_API_ENDPOINT = 'https://app.fishingvietnam.com/api/profile';
 const POLLING_INTERVAL = 5000;
@@ -232,7 +239,7 @@ document.addEventListener('DOMContentLoaded', function () {
                         package_id: PACKAGE_IDS[currentPackage] || 3,
                         email: emailTrimmed,
                         notes: notes,
-                        payment_method_id: 2
+                        payment_method_id: ENV_CONFIG.payment_method_id
                     });
                 })
                 .catch(() => {
