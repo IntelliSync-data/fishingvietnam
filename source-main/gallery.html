@@ -5,13 +5,15 @@
     <meta charset="UTF-8">
     <link rel="icon" type="image/png" href="favicon.png">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta name="description" content="VFO Fly Fishing Park - Live The Dream & Share The Passion. Experience amazing fishing and wilderness adventures.">
+    <meta name="description"
+        content="VFO Fly Fishing Park - Live The Dream & Share The Passion. Experience amazing fishing and wilderness adventures.">
     <title>Fishing VietNam - Live The Dream & Share The Passion</title>
 
     <!-- Primary Meta Tags -->
     <meta name="title" content="Fishing VietNam - Live The Dream & Share The Passion">
     <meta name="author" content="VFO Fly Fishing Park">
-    <meta name="keywords" content="fishing vietnam, fly fishing, VFO, fishing park, wilderness adventures, fishing tours, kayak adventures, platinum fishing experience, premium elite expedition">
+    <meta name="keywords"
+        content="fishing vietnam, fly fishing, VFO, fishing park, wilderness adventures, fishing tours, kayak adventures, platinum fishing experience, premium elite expedition">
 
     <!-- Canonical URL -->
     <link rel="canonical" href="https://fishingvietnam.com/">
@@ -21,7 +23,8 @@
     <meta property="og:url" content="https://fishingvietnam.com/">
     <meta property="og:site_name" content="Fishing VietNam">
     <meta property="og:title" content="Fishing VietNam - Live The Dream & Share The Passion">
-    <meta property="og:description" content="VFO Fly Fishing Park - Live The Dream & Share The Passion. Experience amazing fishing and wilderness adventures.">
+    <meta property="og:description"
+        content="VFO Fly Fishing Park - Live The Dream & Share The Passion. Experience amazing fishing and wilderness adventures.">
     <meta property="og:image" content="https://fishingvietnam.com/assets/images/thumb-big.png">
     <meta property="og:image:secure_url" content="https://fishingvietnam.com/assets/images/thumb-big.png">
     <meta property="og:image:type" content="image/png">
@@ -35,7 +38,8 @@
     <meta name="twitter:card" content="summary_large_image">
     <meta name="twitter:url" content="https://fishingvietnam.com/">
     <meta name="twitter:title" content="Fishing VietNam - Live The Dream & Share The Passion">
-    <meta name="twitter:description" content="VFO Fly Fishing Park - Live The Dream & Share The Passion. Experience amazing fishing and wilderness adventures.">
+    <meta name="twitter:description"
+        content="VFO Fly Fishing Park - Live The Dream & Share The Passion. Experience amazing fishing and wilderness adventures.">
     <meta name="twitter:image" content="https://fishingvietnam.com/assets/images/thumb-big.png">
     <meta name="twitter:image:alt" content="VFO Fly Fishing Park - Fishing Vietnam">
 
@@ -44,10 +48,11 @@
 
     <!-- Apple Touch Icon -->
     <link rel="apple-touch-icon" href="https://fishingvietnam.com/assets/images/thumb-big.png">
-    
+
     <link rel="stylesheet" href="assets/css/globals.css" />
     <link rel="stylesheet" href="assets/css/styleguide.css" />
     <link rel="stylesheet" href="assets/css/index.css" />
+    <script src="https://app.fishingvietnam.com/chatbot/widget.js"></script>
 </head>
 
 <body>
@@ -106,11 +111,12 @@
             <img class="gallery-bg" src="assets/images/mask-group.png" />
             <div class="container">
                 <div class="gallery-header">
-                    <div class="gallery-title">Gallery</div>
+                    <div class="gallery-title">Your adventure awaits you</div>
                     <p class="gallery-desc">
                         Experience premium fishing, eco-tourism, and adventure — only 90 minutes from Ho Chi Minh City.
                     </p>
-                    <button class="btn btn-back" onclick="location.href='/#gallery'">
+                    <button class="btn btn-back"
+                        onclick="history.length > 1 ? history.back() : location.href='index.html#gallery'">
                         <svg width="7" height="11" viewBox="0 0 7 11" fill="none" xmlns="http://www.w3.org/2000/svg">
                             <path d="M5.5 1L1 5.5L5.5 10" stroke="#8292AA" stroke-width="2" stroke-linecap="round"
                                 stroke-linejoin="round" />
@@ -119,34 +125,12 @@
                     </button>
                 </div>
                 <div class="gallery-tabs">
-                    <button class="gallery-tab-btn selected">All</button>
-                    <button class="gallery-tab-btn">Image</button>
-                    <button class="gallery-tab-btn">Video</button>
                 </div>
                 <div class="gallery-content">
-                    <div class="gallery-grid">
-                        <div class="gallery-img large">
-                            <img src="assets/images/image-gallery-1.png" />
-                        </div>
-                        <div class="gallery-img video">
-                            <img src="assets/images/image-gallery-2.png" />
-                        </div>
-                        <div class="gallery-img">
-                            <img src="assets/images/image-gallery-3.png" />
-                        </div>
-                        <div class="gallery-img video">
-                            <img src="assets/images/rectangle-17754.png" />
-                        </div>
-                        <div class="gallery-img">
-                            <img src="assets/images/rectangle-17755.png" />
-                        </div>
-                        <div class="gallery-img video">
-                            <img src="assets/images/rectangle-17756.png" />
-                        </div>
-                        <div class="gallery-img">
-                            <img src="assets/images/rectangle-17757.png" />
-                        </div>
-                    </div>
+                    <!-- gallery.js render-->
+                    <div class="gallery-grid"></div>
+                    <!--infinite scroll-->
+                    <div id="gallery-sentinel"></div>
                 </div>
 
             </div>
@@ -161,6 +145,7 @@
     </div>
 
     <script src="assets/js/navigate.js"></script>
+    <script src="assets/js/index.js"></script>
     <script src="assets/js/gallery.js"></script>
     <script src="assets/js/footer.js"></script>
 </body>

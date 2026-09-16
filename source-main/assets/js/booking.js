@@ -1,6 +1,15 @@
 // ===== API CONFIGURATION =====
+const isProduction = window.location.hostname === 'fishingvietnam.com' ||
+    window.location.hostname === 'www.fishingvietnam.com';
+
+const ENV_CONFIG = isProduction
+    ? { payment_method_id: 3 }   // production
+    : { payment_method_id: 2 };  // demo
+
 const API_ENDPOINT = 'https://app.fishingvietnam.com/api/inquiry';
-const PROFILE_API_ENDPOINT = 'https://app.fishingvietnam.com/api/profile/create';
+const PROFILE_API_ENDPOINT = 'https://app.fishingvietnam.com/api/profile';
+const POLLING_INTERVAL = 5000;
+const POLLING_TIMEOUT = 300000;
 
 const PACKAGE_IDS = {
     'basic': 3,
@@ -14,9 +23,79 @@ const PACKAGE_LABELS = {
     'platinum-elite': 'Premium Elite Expedition'
 };
 
-let currentPackage = 'basic'; // Track current selected package
+let currentPackage = 'basic';
+let paymentPollingInterval = null;
+let paymentPollingTimeout = null;
+let countdownInterval = null;
+let paymentWindow = null;
 
-document.addEventListener('DOMContentLoaded', function() {
+// ===== PAYMENT POPUP WINDOW =====
+const PAYMENT_WINDOW_WIDTH = 500;
+const PAYMENT_WINDOW_HEIGHT = 720;
+
+/**
+ * Open the payment provider in a popup window.
+ *
+ * Must be called synchronously from a click handler, otherwise the browser
+ * blocks it as an unsolicited popup. Pass no url to park the window on a
+ * placeholder while the order is being created, then hand the real url to
+ * navigatePaymentWindow() once the API answers.
+ */
+function openPaymentWindow(url) {
+    const left = window.screenX + Math.max(0, (window.outerWidth - PAYMENT_WINDOW_WIDTH) / 2);
+    const top = window.screenY + Math.max(0, (window.outerHeight - PAYMENT_WINDOW_HEIGHT) / 2);
+    const features = [
+        `width=${PAYMENT_WINDOW_WIDTH}`,
+        `height=${PAYMENT_WINDOW_HEIGHT}`,
+        `left=${Math.round(left)}`,
+        `top=${Math.round(top)}`,
+        'resizable=yes',
+        'scrollbars=yes',
+    ].join(',');
+
+    paymentWindow = window.open(url || 'about:blank', 'isdPaymentWindow', features);
+
+    if (paymentWindow && !url) {
+        // Placeholder so the blank window does not look broken while we wait
+        paymentWindow.document.write(`
+            <html><head><title>Connecting to PayPal...</title></head>
+            <body style="margin:0;display:flex;align-items:center;justify-content:center;
+                         height:100vh;background:#0C2E45;color:rgba(255,255,255,0.75);
+                         font-family:'Montserrat',Arial,sans-serif;font-size:15px;">
+                Connecting to PayPal...
+            </body></html>
+        `);
+        paymentWindow.document.close();
+    }
+
+    return paymentWindow;
+}
+
+/** Send an already-open payment window to the provider url */
+function navigatePaymentWindow(url) {
+    if (paymentWindow && !paymentWindow.closed) {
+        paymentWindow.location.href = url;
+        paymentWindow.focus();
+    } else {
+        // Popup was blocked or the customer closed it before we got the url
+        openPaymentWindow(url);
+    }
+}
+
+/**
+ * Close the payment popup.
+ *
+ * Allowed even after the window navigated to paypal.com: a window opened by
+ * script can always be closed by its opener.
+ */
+function closePaymentWindow() {
+    if (paymentWindow && !paymentWindow.closed) {
+        paymentWindow.close();
+    }
+    paymentWindow = null;
+}
+
+document.addEventListener('DOMContentLoaded', function () {
     // Get all package tabs
     const packageTabs = document.querySelectorAll('.package-tab');
     const bookingSection = document.querySelector('.booking-section');
@@ -61,9 +140,25 @@ document.addEventListener('DOMContentLoaded', function() {
         selectPackageTab('basic'); // Default
     }
 
+    // Show the payment success modal when returning from an external payment
+    // provider, e.g. /booking-now.html?status=1
+    if (urlParams.get('status') === '1') {
+        showPaymentSuccessModal();
+
+        // Drop the flag from the URL so a refresh or back/forward does not
+        // pop the modal again, keeping any other params intact.
+        urlParams.delete('status');
+        const query = urlParams.toString();
+        window.history.replaceState(
+            {},
+            '',
+            window.location.pathname + (query ? '?' + query : '') + window.location.hash
+        );
+    }
+
     // Add click event for each package tab
     packageTabs.forEach(tab => {
-        tab.addEventListener('click', function() {
+        tab.addEventListener('click', function () {
             // Get data-package value
             const packageName = this.getAttribute('data-package');
             selectPackageTab(packageName);
@@ -72,7 +167,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // ===== BOOKING FORM SUBMISSION =====
     if (bookingForm) {
-        bookingForm.addEventListener('submit', function(e) {
+        bookingForm.addEventListener('submit', function (e) {
             e.preventDefault();
 
             // Get form data
@@ -138,19 +233,14 @@ document.addEventListener('DOMContentLoaded', function() {
 
             submitToAPI(payload)
                 .then(() => {
-                    // Create profile package after inquiry succeeds
+                    finalizeSubmission();
                     const notes = `${nameTrimmed}, ${phoneTrimmed}${specialRequests ? ', ' + specialRequests : ''}`;
-                    return createProfilePackage({
+                    showPaymentOptionModal({
                         package_id: PACKAGE_IDS[currentPackage] || 3,
                         email: emailTrimmed,
                         notes: notes,
-                        payment_method_id: 1
+                        payment_method_id: ENV_CONFIG.payment_method_id
                     });
-                })
-                .then(() => {
-                    showSuccessModal(emailTrimmed);
-                    bookingForm.reset();
-                    finalizeSubmission();
                 })
                 .catch(() => {
                     showNotification('An error occurred. Please try again!', 'error');
@@ -162,7 +252,7 @@ document.addEventListener('DOMContentLoaded', function() {
     // ===== CONTACT FORM SUBMISSION =====
     const contactForm = document.getElementById('contactForm');
     if (contactForm) {
-        contactForm.addEventListener('submit', function(e) {
+        contactForm.addEventListener('submit', function (e) {
             e.preventDefault();
 
             // Get form data
@@ -244,7 +334,7 @@ function submitToAPI(payload) {
 
 // ===== CREATE PROFILE PACKAGE (JSONRPC) =====
 function createProfilePackage(params) {
-    return fetch(PROFILE_API_ENDPOINT, {
+    return fetch(`${PROFILE_API_ENDPOINT}/create`, {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json'
@@ -266,29 +356,66 @@ function createProfilePackage(params) {
     });
 }
 
-// ===== SUCCESS MODAL =====
-function showSuccessModal(email) {
-    // Remove existing modal if any
-    const existing = document.getElementById('bookingSuccessModal');
+// ===== CHECK PAYMENT STATUS =====
+function checkPaymentStatus(userProfileId, transactionCode) {
+    return fetch(`${PROFILE_API_ENDPOINT}/check-payment`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+            jsonrpc: '2.0',
+            params: {
+                user_profile_id: userProfileId,
+                transaction_code: transactionCode
+            }
+        })
+    }).then(response => {
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        return response.json();
+    });
+}
+
+// ===== STOP PAYMENT POLLING =====
+function stopPaymentPolling() {
+    if (paymentPollingInterval) {
+        clearInterval(paymentPollingInterval);
+        paymentPollingInterval = null;
+    }
+    if (paymentPollingTimeout) {
+        clearTimeout(paymentPollingTimeout);
+        paymentPollingTimeout = null;
+    }
+    if (countdownInterval) {
+        clearInterval(countdownInterval);
+        countdownInterval = null;
+    }
+}
+
+// ===== PAYMENT OPTION MODAL =====
+function showPaymentOptionModal(profileParams) {
+    const existing = document.getElementById('paymentOptionModal');
     if (existing) existing.remove();
 
     const overlay = document.createElement('div');
-    overlay.id = 'bookingSuccessModal';
+    overlay.id = 'paymentOptionModal';
     overlay.style.cssText = `
         position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-        background: rgba(0, 0, 0, 0.6); z-index: 10001;
+        background: rgba(0, 0, 0, 0.7); z-index: 10001;
         display: flex; align-items: center; justify-content: center;
         animation: fadeIn 0.25s ease;
     `;
 
     overlay.innerHTML = `
         <div style="
-            background: #0C2E45; border-radius: 16px; max-width: 460px; width: 90%;
+            background: #0C2E45; border-radius: 16px; max-width: 500px; width: 90%;
             padding: 48px 40px; text-align: center; position: relative;
-            box-shadow: 0 8px 32px rgba(0,0,0,0.3); animation: modalSlideUp 0.3s ease;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.4); animation: modalSlideUp 0.3s ease;
             border: 1px solid rgba(213, 174, 68, 0.2);
         ">
-            <button id="closeSuccessModal" style="
+            <button id="closePaymentOption" style="
                 position: absolute; top: 14px; right: 14px; background: none;
                 border: none; cursor: pointer; width: 32px; height: 32px;
                 display: flex; align-items: center; justify-content: center;
@@ -307,27 +434,56 @@ function showSuccessModal(email) {
                 display: flex; align-items: center; justify-content: center;
             ">
                 <svg width="36" height="36" viewBox="0 0 24 24" fill="none"
-                     stroke="#D5AA44" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-                    <polyline points="20 6 9 17 4 12"></polyline>
+                     stroke="#D5AA44" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <rect x="1" y="4" width="22" height="16" rx="2" ry="2"></rect>
+                    <line x1="1" y1="10" x2="23" y2="10"></line>
                 </svg>
             </div>
             <h3 style="
-                font-family: 'Canela Deck', Georgia, serif; font-size: 26px;
-                color: #D5AA44; margin: 0 0 16px; font-weight: 400;
-            ">Booking Submitted Successfully</h3>
+                font-family: 'Canela Deck', Georgia, serif; font-size: 24px;
+                color: #D5AA44; margin: 0 0 12px; font-weight: 400;
+            ">Select Payment Option</h3>
             <p style="
-                font-family: 'Montserrat', sans-serif; font-size: 15px;
-                color: rgba(255, 255, 255, 0.75); line-height: 1.6; margin: 0;
-            ">Fishing VietNam will review and notify you via email at
-                <strong style="color: #D5AA44;">${email}</strong>
-            </p>
+                font-family: 'Montserrat', sans-serif; font-size: 14px;
+                color: rgba(255, 255, 255, 0.65); line-height: 1.6; margin: 0 0 32px;
+            ">Choose how you would like to pay for your booking</p>
+            <div style="display: flex; flex-direction: column; gap: 14px;">
+                <button id="payFullBtn" style="
+                    background: #D5AA44; color: #0C2E45; border: none; border-radius: 10px;
+                    padding: 18px 24px; cursor: pointer; transition: all 0.2s;
+                    font-family: 'Montserrat', sans-serif; font-weight: 600; font-size: 15px;
+                    display: flex; align-items: center; justify-content: center; gap: 10px;
+                " onmouseover="this.style.background='#e0b94d'; this.style.transform='translateY(-1px)'"
+                   onmouseout="this.style.background='#D5AA44'; this.style.transform='none'">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none"
+                         stroke="#0C2E45" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <circle cx="12" cy="12" r="10"></circle>
+                        <line x1="12" y1="8" x2="12" y2="16"></line>
+                        <line x1="8" y1="12" x2="16" y2="12"></line>
+                    </svg>
+                    Pay Full Amount (100%)
+                </button>
+                <button id="payHalfBtn" style="
+                    background: transparent; color: #D5AA44; border: 1.5px solid #D5AA44;
+                    border-radius: 10px; padding: 18px 24px; cursor: pointer; transition: all 0.2s;
+                    font-family: 'Montserrat', sans-serif; font-weight: 600; font-size: 15px;
+                    display: flex; align-items: center; justify-content: center; gap: 10px;
+                " onmouseover="this.style.background='rgba(213,174,68,0.1)'; this.style.transform='translateY(-1px)'"
+                   onmouseout="this.style.background='transparent'; this.style.transform='none'">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none"
+                         stroke="#D5AA44" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <circle cx="12" cy="12" r="10"></circle>
+                        <line x1="12" y1="8" x2="12" y2="16"></line>
+                    </svg>
+                    Pay 50% Deposit
+                </button>
+            </div>
         </div>
     `;
 
     document.body.appendChild(overlay);
     document.body.style.overflow = 'hidden';
 
-    // Close handlers
     function closeModal() {
         overlay.style.animation = 'fadeOut 0.25s ease';
         setTimeout(() => {
@@ -336,7 +492,323 @@ function showSuccessModal(email) {
         }, 250);
     }
 
-    overlay.querySelector('#closeSuccessModal').addEventListener('click', closeModal);
+    overlay.querySelector('#closePaymentOption').addEventListener('click', closeModal);
+    overlay.addEventListener('click', (e) => {
+        if (e.target === overlay) closeModal();
+    });
+
+    function handlePaymentChoice(halfPayment) {
+        closeModal();
+
+        // Open the popup here, while we still hold the click's user gesture.
+        // Opening it later, inside .then(), gets blocked by the browser.
+        openPaymentWindow();
+
+        const params = { ...profileParams, half_payment: halfPayment };
+        showPaymentLoadingModal();
+        createProfilePackage(params)
+            .then(data => {
+                removePaymentLoadingModal();
+                if (data.result && data.result.success) {
+                    if (data.result.redirect_url) {
+                        navigatePaymentWindow(data.result.redirect_url);
+                    } else {
+                        closePaymentWindow();
+                    }
+                    showWaitingPaymentModal(data.result);
+                    const bookingForm = document.getElementById('bookingForm');
+                    if (bookingForm) bookingForm.reset();
+                } else {
+                    closePaymentWindow();
+                    showNotification(data.result?.error || 'Failed to create payment. Please try again!', 'error');
+                }
+            })
+            .catch(() => {
+                removePaymentLoadingModal();
+                closePaymentWindow();
+                showNotification('An error occurred. Please try again!', 'error');
+            });
+    }
+
+    overlay.querySelector('#payFullBtn').addEventListener('click', () => handlePaymentChoice(false));
+    overlay.querySelector('#payHalfBtn').addEventListener('click', () => handlePaymentChoice(true));
+}
+
+// ===== LOADING MODAL =====
+function showPaymentLoadingModal() {
+    const existing = document.getElementById('paymentLoadingModal');
+    if (existing) existing.remove();
+
+    const overlay = document.createElement('div');
+    overlay.id = 'paymentLoadingModal';
+    overlay.style.cssText = `
+        position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+        background: rgba(0, 0, 0, 0.7); z-index: 10002;
+        display: flex; align-items: center; justify-content: center;
+    `;
+    overlay.innerHTML = `
+        <div style="
+            background: #0C2E45; border-radius: 16px; padding: 48px;
+            text-align: center; border: 1px solid rgba(213, 174, 68, 0.2);
+        ">
+            <div style="
+                width: 48px; height: 48px; border: 3px solid rgba(213,174,68,0.2);
+                border-top-color: #D5AA44; border-radius: 50%; margin: 0 auto 20px;
+                animation: spin 0.8s linear infinite;
+            "></div>
+            <p style="
+                font-family: 'Montserrat', sans-serif; font-size: 15px;
+                color: rgba(255,255,255,0.8); margin: 0;
+            ">Creating payment...</p>
+        </div>
+    `;
+    document.body.appendChild(overlay);
+}
+
+function removePaymentLoadingModal() {
+    const el = document.getElementById('paymentLoadingModal');
+    if (el) el.remove();
+}
+
+// ===== WAITING PAYMENT MODAL =====
+function showWaitingPaymentModal(paymentData) {
+    const existing = document.getElementById('waitingPaymentModal');
+    if (existing) existing.remove();
+
+    stopPaymentPolling();
+
+    const overlay = document.createElement('div');
+    overlay.id = 'waitingPaymentModal';
+    overlay.style.cssText = `
+        position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+        background: rgba(0, 0, 0, 0.7); z-index: 10001;
+        display: flex; align-items: center; justify-content: center;
+        animation: fadeIn 0.25s ease;
+    `;
+
+    const amountUSD = paymentData.amount_usd != null
+        ? `$${new Intl.NumberFormat('en-US').format(paymentData.amount_usd)} USD`
+        : `${new Intl.NumberFormat('en-US').format(paymentData.amount)} VND`;
+
+    overlay.innerHTML = `
+        <div style="
+            background: #0C2E45; border-radius: 16px; max-width: 460px; width: 90%;
+            padding: 44px 40px; text-align: center; position: relative;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.4); animation: modalSlideUp 0.3s ease;
+            border: 1px solid rgba(213, 174, 68, 0.2);
+        ">
+            <button id="closeWaitingModal" style="
+                position: absolute; top: 14px; right: 14px; background: none;
+                border: none; cursor: pointer; width: 32px; height: 32px;
+                display: flex; align-items: center; justify-content: center;
+                border-radius: 50%; transition: background 0.2s;
+            " onmouseover="this.style.background='rgba(255,255,255,0.1)'"
+               onmouseout="this.style.background='none'">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none"
+                     stroke="rgba(255,255,255,0.6)" stroke-width="2" stroke-linecap="round">
+                    <line x1="18" y1="6" x2="6" y2="18"></line>
+                    <line x1="6" y1="6" x2="18" y2="18"></line>
+                </svg>
+            </button>
+
+            <div style="
+                width: 64px; height: 64px; border: 3px solid rgba(213,174,68,0.2);
+                border-top-color: #D5AA44; border-radius: 50%; margin: 0 auto 24px;
+                animation: spin 0.8s linear infinite;
+            "></div>
+
+            <h3 style="
+                font-family: 'Canela Deck', Georgia, serif; font-size: 22px;
+                color: #D5AA44; margin: 0 0 8px; font-weight: 400;
+            ">Waiting for Payment</h3>
+            <p style="
+                font-family: 'Montserrat', sans-serif; font-size: 13px;
+                color: rgba(255,255,255,0.55); margin: 0 0 24px; line-height: 1.6;
+            ">Please complete the payment on PayPal.<br>This page will update automatically.</p>
+
+            <div style="
+                background: rgba(213, 174, 68, 0.08); border-radius: 10px;
+                padding: 16px; margin: 0 0 20px;
+                border: 1px solid rgba(213, 174, 68, 0.15);
+            ">
+                <div style="
+                    font-family: 'Montserrat', sans-serif; font-size: 13px;
+                    color: rgba(255,255,255,0.55); margin-bottom: 4px;
+                ">Amount</div>
+                <div style="
+                    font-family: 'Montserrat', sans-serif; font-size: 24px;
+                    color: #D5AA44; font-weight: 700;
+                ">${amountUSD}</div>
+            </div>
+
+            <div id="waitingCountdown" style="
+                font-family: 'Montserrat', sans-serif; font-size: 14px;
+                color: rgba(255,255,255,0.6); display: flex; align-items: center;
+                justify-content: center; gap: 6px; margin-bottom: 16px;
+            ">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none"
+                     stroke="currentColor" stroke-width="2" stroke-linecap="round">
+                    <circle cx="12" cy="12" r="10"></circle>
+                    <polyline points="12 6 12 12 16 14"></polyline>
+                </svg>
+                Expires in <span id="waitingTimer" style="font-weight: 600; color: #D5AA44;">05:00</span>
+            </div>
+
+            <button id="openPaypalBtn" style="
+                background: transparent; color: #D5AA44; border: 1.5px solid rgba(213,174,68,0.4);
+                border-radius: 8px; padding: 12px 24px; cursor: pointer; transition: all 0.2s;
+                font-family: 'Montserrat', sans-serif; font-weight: 600; font-size: 13px;
+            " onmouseover="this.style.background='rgba(213,174,68,0.1)'"
+               onmouseout="this.style.background='transparent'">
+                Open PayPal Again
+            </button>
+        </div>
+    `;
+
+    document.body.appendChild(overlay);
+    document.body.style.overflow = 'hidden';
+
+    // Start countdown
+    let remaining = 300;
+    const timerEl = overlay.querySelector('#waitingTimer');
+    const countdownEl = overlay.querySelector('#waitingCountdown');
+
+    countdownInterval = setInterval(() => {
+        remaining--;
+        const m = String(Math.floor(remaining / 60)).padStart(2, '0');
+        const s = String(remaining % 60).padStart(2, '0');
+        timerEl.textContent = `${m}:${s}`;
+        if (remaining <= 60) {
+            timerEl.style.color = '#e74c3c';
+            countdownEl.style.color = 'rgba(231, 76, 60, 0.8)';
+        }
+        if (remaining <= 0) {
+            clearInterval(countdownInterval);
+            countdownInterval = null;
+        }
+    }, 1000);
+
+    // Re-open PayPal button
+    overlay.querySelector('#openPaypalBtn').addEventListener('click', () => {
+        if (!paymentData.redirect_url) return;
+        if (paymentWindow && !paymentWindow.closed) {
+            paymentWindow.focus();
+        } else {
+            openPaymentWindow(paymentData.redirect_url);
+        }
+    });
+
+    // Start polling
+    paymentPollingInterval = setInterval(async () => {
+        try {
+            const resp = await checkPaymentStatus(paymentData.user_profile_id, paymentData.transaction_id);
+            if (resp.result && resp.result.success) {
+                if (resp.result.status === 'confirmed') {
+                    stopPaymentPolling();
+                    closePaymentWindow();
+                    closeWaiting();
+                    showPaymentSuccessModal();
+                } else if (resp.result.status === 'expired') {
+                    stopPaymentPolling();
+                    closePaymentWindow();
+                    closeWaiting();
+                    showNotification('Payment expired. Please try again.', 'error');
+                }
+            }
+        } catch (e) {
+            console.error('Payment polling error:', e);
+        }
+    }, POLLING_INTERVAL);
+
+    paymentPollingTimeout = setTimeout(() => {
+        stopPaymentPolling();
+        closePaymentWindow();
+        closeWaiting();
+        showNotification('Payment expired. Please try again.', 'error');
+    }, POLLING_TIMEOUT);
+
+    function closeWaiting() {
+        stopPaymentPolling();
+        overlay.style.animation = 'fadeOut 0.25s ease';
+        setTimeout(() => {
+            overlay.remove();
+            document.body.style.overflow = '';
+        }, 250);
+    }
+
+    overlay.querySelector('#closeWaitingModal').addEventListener('click', closeWaiting);
+    overlay.addEventListener('click', (e) => {
+        if (e.target === overlay) closeWaiting();
+    });
+}
+
+// ===== PAYMENT SUCCESS MODAL =====
+function showPaymentSuccessModal() {
+    const existing = document.getElementById('paymentSuccessModal');
+    if (existing) existing.remove();
+
+    const overlay = document.createElement('div');
+    overlay.id = 'paymentSuccessModal';
+    overlay.style.cssText = `
+        position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+        background: rgba(0, 0, 0, 0.7); z-index: 10001;
+        display: flex; align-items: center; justify-content: center;
+        animation: fadeIn 0.25s ease;
+    `;
+
+    overlay.innerHTML = `
+        <div style="
+            background: #0C2E45; border-radius: 16px; max-width: 460px; width: 90%;
+            padding: 48px 40px; text-align: center; position: relative;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.3); animation: modalSlideUp 0.3s ease;
+            border: 1px solid rgba(213, 174, 68, 0.2);
+        ">
+            <button id="closePaymentSuccess" style="
+                position: absolute; top: 14px; right: 14px; background: none;
+                border: none; cursor: pointer; width: 32px; height: 32px;
+                display: flex; align-items: center; justify-content: center;
+                border-radius: 50%; transition: background 0.2s;
+            " onmouseover="this.style.background='rgba(255,255,255,0.1)'"
+               onmouseout="this.style.background='none'">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none"
+                     stroke="rgba(255,255,255,0.6)" stroke-width="2" stroke-linecap="round">
+                    <line x1="18" y1="6" x2="6" y2="18"></line>
+                    <line x1="6" y1="6" x2="18" y2="18"></line>
+                </svg>
+            </button>
+            <div style="
+                width: 80px; height: 80px; margin: 0 auto 24px;
+                background: rgba(39, 174, 96, 0.15); border-radius: 50%;
+                display: flex; align-items: center; justify-content: center;
+            ">
+                <svg width="40" height="40" viewBox="0 0 24 24" fill="none"
+                     stroke="#27AE60" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                    <polyline points="20 6 9 17 4 12"></polyline>
+                </svg>
+            </div>
+            <h3 style="
+                font-family: 'Canela Deck', Georgia, serif; font-size: 26px;
+                color: #27AE60; margin: 0 0 16px; font-weight: 400;
+            ">Payment Successful!</h3>
+            <p style="
+                font-family: 'Montserrat', sans-serif; font-size: 15px;
+                color: rgba(255, 255, 255, 0.75); line-height: 1.7; margin: 0;
+            ">Thank you for your payment. Our team will contact you shortly to confirm your booking details.</p>
+        </div>
+    `;
+
+    document.body.appendChild(overlay);
+    document.body.style.overflow = 'hidden';
+
+    function closeModal() {
+        overlay.style.animation = 'fadeOut 0.25s ease';
+        setTimeout(() => {
+            overlay.remove();
+            document.body.style.overflow = '';
+        }, 250);
+    }
+
+    overlay.querySelector('#closePaymentSuccess').addEventListener('click', closeModal);
     overlay.addEventListener('click', (e) => {
         if (e.target === overlay) closeModal();
     });
@@ -411,6 +883,9 @@ if (!document.querySelector('#notification-styles')) {
         @keyframes modalSlideUp {
             from { transform: translateY(30px); opacity: 0; }
             to { transform: translateY(0); opacity: 1; }
+        }
+        @keyframes spin {
+            to { transform: rotate(360deg); }
         }
     `;
     document.head.appendChild(style);
