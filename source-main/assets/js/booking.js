@@ -3,8 +3,8 @@ const isProduction = window.location.hostname === 'fishingvietnam.com' ||
     window.location.hostname === 'www.fishingvietnam.com';
 
 const ENV_CONFIG = isProduction
-    ? { payment_method_id: 3 }   // production
-    : { payment_method_id: 2 };  // demo
+    ? { payment_method_id: 3, cash_payment_method_id: 6 }   // production
+    : { payment_method_id: 5, cash_payment_method_id: 4 };  // demo
 
 const API_ENDPOINT = 'https://app.fishingvietnam.com/api/inquiry';
 const PROFILE_API_ENDPOINT = 'https://app.fishingvietnam.com/api/profile';
@@ -234,9 +234,12 @@ document.addEventListener('DOMContentLoaded', function () {
             submitToAPI(payload)
                 .then(() => {
                     finalizeSubmission();
-                    const notes = `${nameTrimmed}, ${phoneTrimmed}${specialRequests ? ', ' + specialRequests : ''}`;
+                    // Tên và SĐT đã có key riêng, notes giữ thông tin đặt chỗ
+                    const notes = `${message}${data.date ? ` - Date: ${data.date}` : ''}`;
                     showPaymentOptionModal({
                         package_id: PACKAGE_IDS[currentPackage] || 3,
+                        name: nameTrimmed,
+                        phone: phoneTrimmed,
                         email: emailTrimmed,
                         notes: notes,
                         payment_method_id: ENV_CONFIG.payment_method_id
@@ -477,6 +480,23 @@ function showPaymentOptionModal(profileParams) {
                     </svg>
                     Pay 50% Deposit
                 </button>
+                <button id="payCashBtn" style="
+                    background: transparent; color: rgba(255,255,255,0.85);
+                    border: 1.5px solid rgba(255,255,255,0.28);
+                    border-radius: 10px; padding: 18px 24px; cursor: pointer; transition: all 0.2s;
+                    font-family: 'Montserrat', sans-serif; font-weight: 600; font-size: 15px;
+                    display: flex; align-items: center; justify-content: center; gap: 10px;
+                " onmouseover="this.style.background='rgba(255,255,255,0.08)'; this.style.transform='translateY(-1px)'"
+                   onmouseout="this.style.background='transparent'; this.style.transform='none'">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none"
+                         stroke="rgba(255,255,255,0.85)" stroke-width="2"
+                         stroke-linecap="round" stroke-linejoin="round">
+                        <rect x="2" y="6" width="20" height="12" rx="2"></rect>
+                        <circle cx="12" cy="12" r="2.5"></circle>
+                        <path d="M6 12h.01M18 12h.01"></path>
+                    </svg>
+                    Payment by Cash
+                </button>
             </div>
         </div>
     `;
@@ -497,27 +517,41 @@ function showPaymentOptionModal(profileParams) {
         if (e.target === overlay) closeModal();
     });
 
-    function handlePaymentChoice(halfPayment) {
+    /** mode: 'full' | 'half' | 'cash' */
+    function handlePaymentChoice(mode) {
         closeModal();
 
-        // Open the popup here, while we still hold the click's user gesture.
-        // Opening it later, inside .then(), gets blocked by the browser.
-        openPaymentWindow();
+        const isCash = mode === 'cash';
 
-        const params = { ...profileParams, half_payment: halfPayment };
+        // Tiền mặt không qua cổng thanh toán nên không mở popup.
+        // Các mức khác phải mở ngay tại đây, lúc còn giữ user gesture của cú click;
+        // mở muộn hơn trong .then() sẽ bị trình duyệt chặn.
+        if (!isCash) openPaymentWindow();
+
+        const params = isCash
+            ? { ...profileParams, payment_method_id: ENV_CONFIG.cash_payment_method_id }
+            : { ...profileParams, half_payment: mode === 'half' };
+
         showPaymentLoadingModal();
         createProfilePackage(params)
             .then(data => {
                 removePaymentLoadingModal();
                 if (data.result && data.result.success) {
+                    const bookingForm = document.getElementById('bookingForm');
+                    if (bookingForm) bookingForm.reset();
+
+                    // Tiền mặt: đơn đã được ghi nhận, nhân viên liên hệ thu tiền sau
+                    if (isCash) {
+                        showRequestReceivedModal();
+                        return;
+                    }
+
                     if (data.result.redirect_url) {
                         navigatePaymentWindow(data.result.redirect_url);
                     } else {
                         closePaymentWindow();
                     }
                     showWaitingPaymentModal(data.result);
-                    const bookingForm = document.getElementById('bookingForm');
-                    if (bookingForm) bookingForm.reset();
                 } else {
                     closePaymentWindow();
                     showNotification(data.result?.error || 'Failed to create payment. Please try again!', 'error');
@@ -530,8 +564,9 @@ function showPaymentOptionModal(profileParams) {
             });
     }
 
-    overlay.querySelector('#payFullBtn').addEventListener('click', () => handlePaymentChoice(false));
-    overlay.querySelector('#payHalfBtn').addEventListener('click', () => handlePaymentChoice(true));
+    overlay.querySelector('#payFullBtn').addEventListener('click', () => handlePaymentChoice('full'));
+    overlay.querySelector('#payHalfBtn').addEventListener('click', () => handlePaymentChoice('half'));
+    overlay.querySelector('#payCashBtn').addEventListener('click', () => handlePaymentChoice('cash'));
 }
 
 // ===== LOADING MODAL =====
@@ -809,6 +844,86 @@ function showPaymentSuccessModal() {
     }
 
     overlay.querySelector('#closePaymentSuccess').addEventListener('click', closeModal);
+    overlay.addEventListener('click', (e) => {
+        if (e.target === overlay) closeModal();
+    });
+    document.addEventListener('keydown', function handler(e) {
+        if (e.key === 'Escape') {
+            closeModal();
+            document.removeEventListener('keydown', handler);
+        }
+    });
+}
+
+// ===== REQUEST RECEIVED MODAL (thanh toán tiền mặt) =====
+function showRequestReceivedModal() {
+    const existing = document.getElementById('requestReceivedModal');
+    if (existing) existing.remove();
+
+    const overlay = document.createElement('div');
+    overlay.id = 'requestReceivedModal';
+    overlay.style.cssText = `
+        position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+        background: rgba(0, 0, 0, 0.7); z-index: 10001;
+        display: flex; align-items: center; justify-content: center;
+        animation: fadeIn 0.25s ease;
+    `;
+
+    overlay.innerHTML = `
+        <div style="
+            background: #0C2E45; border-radius: 16px; max-width: 460px; width: 90%;
+            padding: 48px 40px; text-align: center; position: relative;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.3); animation: modalSlideUp 0.3s ease;
+            border: 1px solid rgba(213, 174, 68, 0.2);
+        ">
+            <button id="closeRequestReceived" style="
+                position: absolute; top: 14px; right: 14px; background: none;
+                border: none; cursor: pointer; width: 32px; height: 32px;
+                display: flex; align-items: center; justify-content: center;
+                border-radius: 50%; transition: background 0.2s;
+            " onmouseover="this.style.background='rgba(255,255,255,0.1)'"
+               onmouseout="this.style.background='none'">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none"
+                     stroke="rgba(255,255,255,0.6)" stroke-width="2" stroke-linecap="round">
+                    <line x1="18" y1="6" x2="6" y2="18"></line>
+                    <line x1="6" y1="6" x2="18" y2="18"></line>
+                </svg>
+            </button>
+            <div style="
+                width: 80px; height: 80px; margin: 0 auto 24px;
+                background: rgba(213, 174, 68, 0.15); border-radius: 50%;
+                display: flex; align-items: center; justify-content: center;
+            ">
+                <svg width="40" height="40" viewBox="0 0 24 24" fill="none"
+                     stroke="#D5AA44" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                    <circle cx="12" cy="12" r="9"></circle>
+                    <polyline points="12 7 12 12 15.5 14"></polyline>
+                </svg>
+            </div>
+            <h3 style="
+                font-family: 'Canela Deck', Georgia, serif; font-size: 26px;
+                color: #D5AA44; margin: 0 0 16px; font-weight: 400;
+            ">Request Received!</h3>
+            <p style="
+                font-family: 'Montserrat', sans-serif; font-size: 15px;
+                color: rgba(255, 255, 255, 0.75); line-height: 1.7; margin: 0;
+            ">Thank you for your booking request. Our team will contact you within
+               24 hours to confirm the details and arrange the cash payment.</p>
+        </div>
+    `;
+
+    document.body.appendChild(overlay);
+    document.body.style.overflow = 'hidden';
+
+    function closeModal() {
+        overlay.style.animation = 'fadeOut 0.25s ease';
+        setTimeout(() => {
+            overlay.remove();
+            document.body.style.overflow = '';
+        }, 250);
+    }
+
+    overlay.querySelector('#closeRequestReceived').addEventListener('click', closeModal);
     overlay.addEventListener('click', (e) => {
         if (e.target === overlay) closeModal();
     });
