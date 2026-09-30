@@ -2,9 +2,13 @@
 const isProduction = window.location.hostname === 'fishingvietnam.com' ||
     window.location.hostname === 'www.fishingvietnam.com';
 
+// Odoo fishing hiện chỉ có 2 phương thức, đều đánh environment = live:
+//   3 = PayPal, 4 = Cash Test
+// Nên demo và production dùng chung. Khi nào tạo được bản test riêng trên Odoo
+// thì đổi id ở nhánh demo, cấu trúc đã sẵn.
 const ENV_CONFIG = isProduction
-    ? { payment_method_id: 3, cash_payment_method_id: 6 }   // production
-    : { payment_method_id: 5, cash_payment_method_id: 4 };  // demo
+    ? { payment_method_id: 3, cash_payment_method_id: 4 }   // production
+    : { payment_method_id: 3, cash_payment_method_id: 4 };  // demo
 
 const API_ENDPOINT = 'https://app.fishingvietnam.com/api/inquiry';
 const PROFILE_API_ENDPOINT = 'https://app.fishingvietnam.com/api/profile';
