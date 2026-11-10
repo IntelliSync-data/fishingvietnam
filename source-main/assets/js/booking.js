@@ -2,13 +2,15 @@
 const isProduction = window.location.hostname === 'fishingvietnam.com' ||
     window.location.hostname === 'www.fishingvietnam.com';
 
-// Phương thức trên Odoo fishing (hỏi package-info ngày 10/11/2026):
-//   3 = PayPal (paypal) | 6 = Cash | 4 = Cash Test
-// Cả ba đều đánh environment = live, không có bản test riêng và KHÔNG có id 5.
-// Production phải dùng Cash (6); Cash Test (4) để cho bản demo xài.
+// Phương thức thanh toán trên Odoo fishing:
+//   production: 3 = PayPal,      6 = Cash
+//   demo:       5 = PayPal test, 4 = Cash test
+// Lưu ý: package-info chỉ trả về phương thức cùng môi trường với gói, nên hỏi
+// bằng gói live sẽ không thấy phương thức test. Đừng dựa vào đó mà kết luận id
+// test không tồn tại rồi sửa lại mấy dòng này.
 const ENV_CONFIG = isProduction
-    ? { payment_method_id: 3, cash_payment_method_id: 6 }   // production: PayPal + Cash
-    : { payment_method_id: 3, cash_payment_method_id: 4 };  // demo: PayPal + Cash Test
+    ? { payment_method_id: 3, cash_payment_method_id: 6 }   // production
+    : { payment_method_id: 5, cash_payment_method_id: 4 };  // demo
 
 const API_ENDPOINT = 'https://app.fishingvietnam.com/api/inquiry';
 const PROFILE_API_ENDPOINT = 'https://app.fishingvietnam.com/api/profile';
