@@ -4,6 +4,15 @@ document.addEventListener('DOMContentLoaded', function() {
 
     const PAGE_LIMIT = 10; // số item load mỗi lần (trang đầu + mỗi lần scroll)
 
+    // Ảnh/video gắn tag theo môi trường: demo cho bản thử, production cho bản thật.
+    // API media chưa lọc được theo tag nên phải lọc ở đây.
+    const IS_PRODUCTION = window.location.hostname === 'fishingvietnam.com' ||
+        window.location.hostname === 'www.fishingvietnam.com';
+    const ENV_TAG = IS_PRODUCTION ? 'production' : 'demo';
+
+    const matchesEnv = item =>
+        (item.tags || []).some(tag => (tag.name || '').trim().toLowerCase() === ENV_TAG);
+
     // Current state 
     let currentCategoryId = null; // null = All, number = categoryId
     let currentPage = 1;
@@ -31,9 +40,29 @@ document.addEventListener('DOMContentLoaded', function() {
             const result = await fetchMedia(currentCategoryId, currentPage);
             totalItems = result.meta.total;
             loadedCount = result.data.length;
-            renderGallery(result.data, false); // append : false, delete old grid, render new grid
+            renderGallery(result.data.filter(matchesEnv), false);
+
+            // Trang đầu có thể lọc còn rỗng. Nếu dừng ở đây thì lưới trống,
+            // không cuộn được nên sentinel không bao giờ kích hoạt -> tải tiếp.
+            await fillUntilVisible();
         } catch (error) {
             console.error('Error loading media:', error);
+        }
+    }
+
+    /**
+     * Kéo thêm trang cho tới khi có thứ để hiện hoặc hết dữ liệu.
+     * Cần thiết vì lọc theo tag ở phía client: một trang API có thể không còn
+     * item nào thuộc môi trường hiện tại.
+     */
+    async function fillUntilVisible() {
+        const grid = document.querySelector('.gallery-grid');
+
+        while (grid && !grid.children.length && loadedCount < totalItems) {
+            currentPage += 1;
+            const result = await fetchMedia(currentCategoryId, currentPage);
+            loadedCount += result.data.length;
+            renderGallery(result.data.filter(matchesEnv), true);
         }
     }
 
@@ -46,7 +75,7 @@ document.addEventListener('DOMContentLoaded', function() {
             currentPage += 1;
             const result = await fetchMedia(currentCategoryId, currentPage);
             loadedCount += result.data.length;
-            renderGallery(result.data, true); // append : true , append new items to existing grid
+            renderGallery(result.data.filter(matchesEnv), true);
         } catch (error) {
             console.error('Error loading more media:', error);
         } finally {
